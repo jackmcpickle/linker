@@ -13,7 +13,7 @@ Tracks implementation against [`docs/PLAN.md`](docs/PLAN.md).
 | 7 | Share token gate + expiry page | ✅ |
 | 8 | Share Turnstile interstitial | ✅ |
 | 9 | Share R2 fetch + cache | ✅ |
-| 10 | Directory listing fallback | ☐ |
+| 10 | Directory listing fallback | ✅ |
 | 11 | Polish | ☐ |
 
 Legend: ☐ pending · ⏳ in progress · ✅ done
@@ -108,6 +108,17 @@ Extending un-revokes (sets new expiry, clears `revokedAt`).
 - Routes: `share.on(['GET','HEAD'], '*', serveShare)`; non-GET/HEAD → 405
 - 404 from R2 currently returns plain text — replaced by directory listing fallback in stage 10
 
-## Stage 10 — Directory listing fallback
+## Stage 10 — Directory listing fallback ✅
+
+- `src/share/views/listing.tsx` — bare HTML directory index, ../parent link, alphabetically-sorted folders then files, sizes formatted, prefers-color-scheme aware
+- `src/share/serve.tsx` (renamed from .ts):
+  - `listingPrefix(sharePrefix, path)` builds the R2 list prefix for a directory request
+  - `buildListing(bucket, sharePrefix, path)` returns null when prefix has no children, else `[folders, files]` with share-relative `href` and sizes
+  - `parentPath(path)` for `../` navigation (undefined at root)
+  - On R2 miss + directory-shaped path → render listing, cached at HTML edge TTL (60s) like any other HTML response, view counter still bumped
+  - Strict file paths (no trailing slash) still 404 as before — no auto-promotion
+- One R2 stream split via `tee()` for both edge cache write + browser response
+
+## Stage 11 — Polish
 
 Pending.
