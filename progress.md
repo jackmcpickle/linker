@@ -7,7 +7,7 @@ Tracks implementation against [`docs/PLAN.md`](docs/PLAN.md).
 | 1 | Scaffold | ✅ |
 | 2 | SETUP docs (CF resources) | ✅ |
 | 3 | Worker dispatch (host-based routing) | ✅ |
-| 4 | Admin auth | ☐ |
+| 4 | Admin auth | ✅ |
 | 5 | Admin CRUD | ☐ |
 | 6 | Typeahead prefix picker | ☐ |
 | 7 | Share token gate + expiry page | ☐ |
@@ -43,6 +43,18 @@ Wildcard cert flagged: free Universal SSL doesn't cover depth-2 wildcards — ne
 
 Each sub-app is self-contained — the share app re-classifies host so it's testable in isolation.
 
-## Stage 4 — Admin auth
+## Stage 4 — Admin auth ✅
+
+- `src/lib/cookie.ts` — HMAC-SHA256 sign/verify (Web Crypto), b64url helpers, constant-time compare, `buildSetCookie`/`clearCookie`/`readCookie`
+- `src/lib/turnstile.ts` — server-side `siteverify` POST
+- `src/lib/throttle.ts` — KV-backed per-IP login throttle (5 fails / 15min → 15min lockout, 15min TTL on the KV row)
+- `src/admin/auth.ts` — session cookie (`admin_session`, 30-day sliding), `requireAuth` middleware, `clientIp` from `cf-connecting-ip`, conditional `Secure` based on request scheme
+- `src/admin/views/layout.tsx` — base HTML, includes Tailwind CSS + HTMX v2 CDN + (conditional) Turnstile script
+- `src/admin/views/login.tsx` — invisible Turnstile, password input, error/lockout banners; widget bootstrap in `public/login.js`
+- `src/admin/views/dashboard.tsx` — placeholder authed landing
+- `src/admin/routes.tsx` — `/_admin` GET (login or dash), `/_admin/login` POST (throttle → Turnstile → password compare → set cookie), `/_admin/logout` POST, asset passthrough for `style.css`/`login.js`/`favicon.ico`
+- Typecheck green, css rebuilt
+
+## Stage 5 — Admin CRUD
 
 Pending.
