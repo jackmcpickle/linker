@@ -6,6 +6,7 @@ import { buildShareCookie, hasValidShareCookie } from "./cookie";
 import { InterstitialPage } from "./views/interstitial";
 import { verifyTurnstile } from "../lib/turnstile";
 import { serveShare } from "./serve";
+import { log } from "../lib/log";
 
 const share = new Hono<ShareEnv>();
 
@@ -33,10 +34,15 @@ share.post("/__verify", async (c) => {
   const next = safeNext(String(form.get("next") ?? "/"));
 
   const ts = await verifyTurnstile(tsToken, c.env.TURNSTILE_SECRET_KEY, clientIp(c));
-  if (!ts.ok) return c.text("verification failed", 400, { "Cache-Control": "no-store" });
+  if (!ts.ok) {
+    log({ event: "share.verify.fail", token: link.token, errors: ts.errors });
+    return c.text("verification failed", 400, { "Cache-Control": "no-store" });
+  }
 
   const cookie = await buildShareCookie(c, link, c.env.COOKIE_HMAC_SECRET);
   if (!cookie) return c.text("share expired", 410, { "Cache-Control": "no-store" });
+
+  log({ event: "share.verify.ok", token: link.token });
 
   return new Response(null, {
     status: 303,

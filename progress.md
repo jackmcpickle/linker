@@ -14,7 +14,7 @@ Tracks implementation against [`docs/PLAN.md`](docs/PLAN.md).
 | 8 | Share Turnstile interstitial | ✅ |
 | 9 | Share R2 fetch + cache | ✅ |
 | 10 | Directory listing fallback | ✅ |
-| 11 | Polish | ☐ |
+| 11 | Polish | ✅ |
 
 Legend: ☐ pending · ⏳ in progress · ✅ done
 
@@ -119,6 +119,25 @@ Extending un-revokes (sets new expiry, clears `revokedAt`).
   - Strict file paths (no trailing slash) still 404 as before — no auto-promotion
 - One R2 stream split via `tee()` for both edge cache write + browser response
 
-## Stage 11 — Polish
+## Stage 11 — Polish ✅
 
-Pending.
+- `src/lib/log.ts` — `log({event, ...})` JSON line logger; visible in CF Workers Logs
+- Logged events:
+  - `admin.login.ok` / `password_fail` / `turnstile_fail`
+  - `admin.link.{create,extend,revoke,delete}` with token + relevant fields
+  - `share.gate.reject` { token, kind: missing|revoked|expired }
+  - `share.verify.{ok,fail}` with errors
+  - `fetch.error` (top-level catch) with message + stack
+- `src/index.ts` — top-level try/catch returns generic 500 (`no-store`), logs full error
+- Empty-state admin UI already shipped in stage 5
+- Browser-local TZ rendering via `admin.js` already shipped in stage 5
+- Typecheck green, css rebuilt
+
+## Done
+
+All stages complete. Pre-deploy checklist:
+
+1. Follow `SETUP.md` for CF resources (R2, KV, secrets, Turnstile, wildcard SSL)
+2. Replace placeholders in `wrangler.jsonc` (KV namespace IDs, Turnstile site key)
+3. `pnpm tailwind && pnpm wrangler deploy`
+4. Test login → create share → visit subdomain → Turnstile → content serves

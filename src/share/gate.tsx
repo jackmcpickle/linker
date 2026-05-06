@@ -3,6 +3,7 @@ import type { ShareEnv, ShareLink } from "../types";
 import { getLink } from "../kv/links";
 import { isValidToken } from "../lib/nanoid";
 import { ExpiredPage } from "./views/expired";
+import { log } from "../lib/log";
 
 export type GateResult =
   | { kind: "ok"; link: ShareLink }
@@ -47,5 +48,6 @@ export const shareGate: MiddlewareHandler<ShareEnv> = async (c, next) => {
     return;
   }
 
+  log({ event: "share.gate.reject", token, kind: result.kind });
   return expiryResponse(c, result.kind);
 };

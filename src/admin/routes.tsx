@@ -20,6 +20,7 @@ import { getLink, listLinks, putLink, deleteLink } from "../kv/links";
 import { generateToken, isValidToken } from "../lib/nanoid";
 import { presetMs } from "../lib/expiry";
 import { Suggestions } from "./views/suggestions";
+import { log } from "../lib/log";
 
 const admin = new Hono<Env>();
 
@@ -62,6 +63,7 @@ admin.post("/_admin/login", async (c) => {
   const ts = await verifyTurnstile(tsToken, c.env.TURNSTILE_SECRET_KEY, ip);
   if (!ts.ok) {
     await recordLoginFailure(c.env.THROTTLE, ip, now);
+    log({ event: "admin.login.turnstile_fail", errors: ts.errors });
     return c.html(
       <LoginPage
         turnstileSiteKey={c.env.TURNSTILE_SITE_KEY}
@@ -73,6 +75,7 @@ admin.post("/_admin/login", async (c) => {
 
   if (!constantTimeEqual(password, c.env.ADMIN_PASSWORD)) {
     const recorded = await recordLoginFailure(c.env.THROTTLE, ip, now);
+    log({ event: "admin.login.password_fail", locked: !recorded.allowed });
     if (!recorded.allowed) {
       return c.html(
         <LoginPage
@@ -93,6 +96,7 @@ admin.post("/_admin/login", async (c) => {
 
   await clearLoginFailures(c.env.THROTTLE, ip);
   await setSessionCookie(c);
+  log({ event: "admin.login.ok" });
   return c.redirect("/_admin", 303);
 });
 
@@ -134,6 +138,7 @@ admin.post("/_admin/links", async (c) => {
     viewCount: 0,
   };
   await putLink(c.env.LINKS, link);
+  log({ event: "admin.link.create", token: link.token, prefix: link.prefix, expiresAt: link.expiresAt });
 
   const links = await listLinks(c.env.LINKS);
   return c.html(<LinkList links={links} shareDomain={c.env.SHARE_DOMAIN} />);
@@ -195,6 +200,7 @@ admin.post("/_admin/links/:token/extend", async (c) => {
     revokedAt: undefined,
   };
   await putLink(c.env.LINKS, updated);
+  log({ event: "admin.link.extend", token, preset: presetId, expiresAt: updated.expiresAt });
   return c.html(<LinkRow link={updated} shareDomain={c.env.SHARE_DOMAIN} />);
 });
 
@@ -206,6 +212,7 @@ admin.post("/_admin/links/:token/revoke", async (c) => {
   if (!link) return c.text("not found", 404);
   const updated: ShareLink = { ...link, revokedAt: Date.now() };
   await putLink(c.env.LINKS, updated);
+  log({ event: "admin.link.revoke", token });
   return c.html(<LinkRow link={updated} shareDomain={c.env.SHARE_DOMAIN} />);
 });
 
@@ -214,6 +221,7 @@ admin.delete("/_admin/links/:token", async (c) => {
   const token = c.req.param("token");
   if (!isValidToken(token)) return c.text("not found", 404);
   await deleteLink(c.env.LINKS, token);
+  log({ event: "admin.link.delete", token });
   return c.body("", 200);
 });
 
