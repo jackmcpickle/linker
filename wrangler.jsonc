@@ -1,0 +1,51 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "habits-linker",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+
+  // Two routes: apex (admin) + wildcard (shares).
+  // Apex uses custom_domain so Workers manages the DNS record + cert.
+  // Wildcard uses route pattern + zone_name (parent zone).
+  // NOTE: free Universal SSL does NOT cover *.linker.habitsofmind.com.au
+  // (depth-2 wildcard). See SETUP.md for cert options.
+  "routes": [
+    { "pattern": "linker.habitsofmind.com.au", "custom_domain": true },
+    { "pattern": "*.linker.habitsofmind.com.au/*", "zone_name": "habitsofmind.com.au" }
+  ],
+
+  // Static assets served from /public — Tailwind output, HTMX optional self-host.
+  // Worker intercepts first; we explicitly call env.ASSETS.fetch when needed.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "habits-linker-content"
+    }
+  ],
+
+  "kv_namespaces": [
+    { "binding": "LINKS", "id": "REPLACE_WITH_LINKS_KV_ID" },
+    { "binding": "THROTTLE", "id": "REPLACE_WITH_THROTTLE_KV_ID" }
+  ],
+
+  "vars": {
+    "SHARE_DOMAIN": "linker.habitsofmind.com.au",
+    "TURNSTILE_SITE_KEY": "REPLACE_WITH_TURNSTILE_SITE_KEY"
+  }
+
+  // Secrets (set via `wrangler secret put`):
+  //   ADMIN_PASSWORD
+  //   COOKIE_HMAC_SECRET
+  //   TURNSTILE_SECRET_KEY
+}

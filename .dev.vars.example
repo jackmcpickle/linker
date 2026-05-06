@@ -1,0 +1,5 @@
+# Local secrets for `wrangler dev`. Copy to .dev.vars (gitignored) and fill in.
+# Production secrets are set via `wrangler secret put <NAME>`.
+ADMIN_PASSWORD=changeme
+COOKIE_HMAC_SECRET=replace-with-32-byte-random-hex
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
