@@ -1,15 +1,23 @@
-import { Hono } from "hono";
-import type { Env } from "./types";
+import type { Bindings } from "./types";
+import adminApp from "./admin/routes";
+import shareApp from "./share/routes";
+import { classifyHost } from "./lib/dispatch";
 
-const app = new Hono<Env>();
+export default {
+  async fetch(req: Request, env: Bindings, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(req.url);
+    if (url.pathname === "/health") return new Response("ok");
 
-app.get("/health", (c) => c.text("ok"));
+    const host = req.headers.get("host") ?? "";
+    const cls = classifyHost(host, env.SHARE_DOMAIN);
 
-// Stage 1 placeholder. Real dispatch comes in stage 3.
-app.all("*", (c) => {
-  const host = c.req.header("host") ?? "";
-  const url = new URL(c.req.url);
-  return c.text(`habits-linker scaffold\nhost: ${host}\npath: ${url.pathname}\n`);
-});
-
-export default app;
+    switch (cls.kind) {
+      case "admin":
+        return adminApp.fetch(req, env, ctx);
+      case "share":
+        return shareApp.fetch(req, env, ctx);
+      default:
+        return new Response(`unknown host: ${host}`, { status: 404 });
+    }
+  },
+};

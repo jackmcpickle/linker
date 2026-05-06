@@ -6,7 +6,7 @@ Tracks implementation against [`docs/PLAN.md`](docs/PLAN.md).
 |------:|-------|:------:|
 | 1 | Scaffold | ✅ |
 | 2 | SETUP docs (CF resources) | ✅ |
-| 3 | Worker dispatch (host-based routing) | ☐ |
+| 3 | Worker dispatch (host-based routing) | ✅ |
 | 4 | Admin auth | ☐ |
 | 5 | Admin CRUD | ☐ |
 | 6 | Typeahead prefix picker | ☐ |
@@ -32,6 +32,17 @@ Legend: ☐ pending · ⏳ in progress · ✅ done
 
 Wildcard cert flagged: free Universal SSL doesn't cover depth-2 wildcards — needs ACM ($10/mo) or CF for SaaS.
 
-## Stage 3 — Worker dispatch
+## Stage 3 — Worker dispatch ✅
+
+- `src/lib/dispatch.ts` — `classifyHost(host, shareDomain)` → `admin` | `share{token}` | `unknown`
+- Apex of `SHARE_DOMAIN`, `localhost`, `127.0.0.1` → admin
+- `<token>.<SHARE_DOMAIN>`, `<token>.localhost` → share
+- `src/index.ts` — top-level fetch dispatches to `adminApp` or `shareApp`; `/health` short-circuited
+- `src/admin/routes.ts` — placeholder admin Hono app
+- `src/share/routes.ts` — placeholder share Hono app, parses token from host via shared classifier
+
+Each sub-app is self-contained — the share app re-classifies host so it's testable in isolation.
+
+## Stage 4 — Admin auth
 
 Pending.
