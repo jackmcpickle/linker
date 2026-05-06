@@ -11,7 +11,7 @@ Tracks implementation against [`docs/PLAN.md`](docs/PLAN.md).
 | 5 | Admin CRUD | ✅ |
 | 6 | Typeahead prefix picker | ✅ |
 | 7 | Share token gate + expiry page | ✅ |
-| 8 | Share Turnstile interstitial | ☐ |
+| 8 | Share Turnstile interstitial | ✅ |
 | 9 | Share R2 fetch + cache | ☐ |
 | 10 | Directory listing fallback | ☐ |
 | 11 | Polish | ☐ |
@@ -83,6 +83,17 @@ Extending un-revokes (sets new expiry, clears `revokedAt`).
 - `src/types.ts` — pulled `ShareEnv` (Bindings + Variables) into shared types
 - `src/share/routes.tsx` — adds `shareGate` after host classifier; valid token attaches `link` to context for stages 8–10
 
-## Stage 8 — Share interstitial
+## Stage 8 — Share interstitial ✅
+
+- `src/share/cookie.ts` — host-only `share_validated` cookie. TTL = `min(24h, expiresAt - now)`. Signed `{ token, iat, exp }`.
+- `src/share/views/interstitial.tsx` — full-page invisible Turnstile, hidden form with `next` path, posts to `/__verify`
+- `public/__challenge.js` — explicit Turnstile render, auto-execute, error-callback retry
+- `src/share/routes.tsx` flow:
+  - `/__challenge.js` → ASSETS passthrough (only share asset exposed)
+  - host classifier → token gate → `/__verify` POST (verifies Turnstile, sets cookie, 303 to `next`)
+  - cookie gate → no cookie → render interstitial; cookie present → next handler
+- `safeNext()` rejects protocol-relative + CRLF injection in `next` param
+
+## Stage 9 — Share R2 fetch + cache
 
 Pending.
