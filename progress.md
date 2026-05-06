@@ -12,7 +12,7 @@ Tracks implementation against [`docs/PLAN.md`](docs/PLAN.md).
 | 6 | Typeahead prefix picker | ✅ |
 | 7 | Share token gate + expiry page | ✅ |
 | 8 | Share Turnstile interstitial | ✅ |
-| 9 | Share R2 fetch + cache | ☐ |
+| 9 | Share R2 fetch + cache | ✅ |
 | 10 | Directory listing fallback | ☐ |
 | 11 | Polish | ☐ |
 
@@ -94,6 +94,20 @@ Extending un-revokes (sets new expiry, clears `revokedAt`).
   - cookie gate → no cookie → render interstitial; cookie present → next handler
 - `safeNext()` rejects protocol-relative + CRLF injection in `next` param
 
-## Stage 9 — Share R2 fetch + cache
+## Stage 9 — Share R2 fetch + cache ✅
+
+- `src/lib/mime.ts` — extension → MIME map (~30 common types), `isHtmlMime`
+- `src/lib/range.ts` — single-range parser → R2 range shape (`offset/length` or `suffix`)
+- `src/share/serve.ts`
+  - `resolveKey(prefix, path)` strict: `/` → `<prefix>/index.html`, `/foo/` → `<prefix>/foo/index.html`, else 1:1
+  - `fetchFromR2` honors `Range` header, sets `Accept-Ranges`, `ETag`, `Last-Modified`, returns 206 + `Content-Range` for partial
+  - Edge cache via `caches.default` keyed on full URL + Range; HTML 60s, assets 1h; `Vary: Range`
+  - Browser-facing response forced to `Cache-Control: no-store`
+  - `r2.body.tee()` splits one R2 stream into edge-write + browser-stream concurrently
+  - `viewCount`/`lastAccessedAt` bumped via `ctx.waitUntil` only on `200` HTML responses
+- Routes: `share.on(['GET','HEAD'], '*', serveShare)`; non-GET/HEAD → 405
+- 404 from R2 currently returns plain text — replaced by directory listing fallback in stage 10
+
+## Stage 10 — Directory listing fallback
 
 Pending.

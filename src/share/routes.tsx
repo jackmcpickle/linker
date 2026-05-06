@@ -5,6 +5,7 @@ import { shareGate } from "./gate";
 import { buildShareCookie, hasValidShareCookie } from "./cookie";
 import { InterstitialPage } from "./views/interstitial";
 import { verifyTurnstile } from "../lib/turnstile";
+import { serveShare } from "./serve";
 
 const share = new Hono<ShareEnv>();
 
@@ -61,15 +62,14 @@ share.use("*", async (c, next) => {
   );
 });
 
-// Stage 8 placeholder — R2 fetch lands in stage 9.
-share.all("*", (c) => {
+// Serve content. Only GET/HEAD allowed — anything else (POST/PUT/DELETE)
+// is bogus on a read-only share.
+share.on(["GET", "HEAD"], "*", async (c) => {
   const link = c.get("link");
-  const path = new URL(c.req.url).pathname;
-  return c.text(
-    `validated share — token=${link.token} prefix=${link.prefix} path=${path}\n` +
-      `(R2 fetch in stage 9)`,
-  );
+  return serveShare(c, link, c.executionCtx);
 });
+
+share.all("*", (c) => c.text("method not allowed", 405));
 
 // ---------- helpers ----------
 
