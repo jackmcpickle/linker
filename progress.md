@@ -4,8 +4,8 @@ Tracks implementation against [`docs/PLAN.md`](docs/PLAN.md).
 
 | Stage | Title | Status |
 |------:|-------|:------:|
-| 1 | Scaffold | ⏳ |
-| 2 | SETUP docs (CF resources) | ☐ |
+| 1 | Scaffold | ✅ |
+| 2 | SETUP docs (CF resources) | ✅ |
 | 3 | Worker dispatch (host-based routing) | ☐ |
 | 4 | Admin auth | ☐ |
 | 5 | Admin CRUD | ☐ |
@@ -18,16 +18,20 @@ Tracks implementation against [`docs/PLAN.md`](docs/PLAN.md).
 
 Legend: ☐ pending · ⏳ in progress · ✅ done
 
-## Stage 1 — Scaffold
+## Stage 1 — Scaffold ✅
 
-In progress.
+- Hono 4 + TypeScript + Tailwind v4 + HTMX setup
+- `wrangler.jsonc` with observability, R2/KV/ASSETS bindings, apex+wildcard routes
+- Strict TS, JSX → `hono/jsx`
+- `pnpm install` clean, typecheck green, css builds
+- Committed.
 
-- `package.json` — Hono 4, nanoid, Tailwind v4, wrangler
-- `tsconfig.json` — strict, JSX → `hono/jsx`
-- `wrangler.jsonc` — observability on, R2/KV/ASSETS bindings, two routes (apex + wildcard)
-- `input.css` — Tailwind v4 entry + HTMX swap transitions
-- `src/types.ts` — Bindings + ShareLink types
-- `src/index.ts` — minimal app, `/health` + catch-all echo
-- `.gitignore`, `.dev.vars.example`, `README.md`
+## Stage 2 — SETUP docs ✅
 
-Pending: `pnpm install` + first commit.
+`SETUP.md` covers: wrangler login, R2 bucket (`oc` hint), KV namespaces, Turnstile site (invisible), wildcard SSL options (ACM/Total TLS/SaaS), secrets, DNS, first deploy, Transmit config.
+
+Wildcard cert flagged: free Universal SSL doesn't cover depth-2 wildcards — needs ACM ($10/mo) or CF for SaaS.
+
+## Stage 3 — Worker dispatch
+
+Pending.
