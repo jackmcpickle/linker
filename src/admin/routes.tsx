@@ -19,6 +19,7 @@ import { verifyTurnstile } from "../lib/turnstile";
 import { getLink, listLinks, putLink, deleteLink } from "../kv/links";
 import { generateToken, isValidToken } from "../lib/nanoid";
 import { presetMs } from "../lib/expiry";
+import { Suggestions } from "./views/suggestions";
 
 const admin = new Hono<Env>();
 
@@ -216,8 +217,26 @@ admin.delete("/_admin/links/:token", async (c) => {
   return c.body("", 200);
 });
 
-// typeahead — real impl in stage 6
-admin.get("/_admin/prefixes", (c) => c.html("<!-- typeahead in stage 6 -->"));
+// typeahead — bucket.list({ prefix, delimiter: '/' })
+admin.get("/_admin/prefixes", async (c) => {
+  const q = (c.req.query("prefix") ?? "").trim();
+  if (!q) return c.html(<Suggestions folders={[]} files={[]} q="" />);
+
+  // limit guards against accidentally huge listings; UI can paginate later
+  const res = await c.env.BUCKET.list({
+    prefix: q,
+    delimiter: "/",
+    limit: 50,
+  });
+
+  const folders = (res.delimitedPrefixes ?? []).slice(0, 12);
+  const files = res.objects
+    .map((o) => o.key)
+    .filter((k) => k !== q) // hide exact-match echo
+    .slice(0, 12);
+
+  return c.html(<Suggestions folders={folders} files={files} q={q} />);
+});
 
 admin.all("*", (c) => c.text("not found", 404));
 

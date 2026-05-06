@@ -9,7 +9,7 @@ Tracks implementation against [`docs/PLAN.md`](docs/PLAN.md).
 | 3 | Worker dispatch (host-based routing) | ✅ |
 | 4 | Admin auth | ✅ |
 | 5 | Admin CRUD | ✅ |
-| 6 | Typeahead prefix picker | ☐ |
+| 6 | Typeahead prefix picker | ✅ |
 | 7 | Share token gate + expiry page | ☐ |
 | 8 | Share Turnstile interstitial | ☐ |
 | 9 | Share R2 fetch + cache | ☐ |
@@ -69,6 +69,13 @@ Each sub-app is self-contained — the share app re-classifies host so it's test
 
 Extending un-revokes (sets new expiry, clears `revokedAt`).
 
-## Stage 6 — Typeahead
+## Stage 6 — Typeahead ✅
+
+- `GET /_admin/prefixes?prefix=...` calls `BUCKET.list({ prefix, delimiter: '/', limit: 50 })`, returns up to 12 folders + 12 files
+- `src/admin/views/suggestions.tsx` — folders/files sections, clickable buttons with `data-suggestion`
+- `public/admin.js` — click on any `[data-suggestion]` writes value into the closest form's `name="prefix"` input and clears the panel via `replaceChildren()`
+- Create form's prefix input fires `hx-trigger="input changed delay:200ms, focus"` against the endpoint; suggestions render into `#prefix-suggestions`
+
+## Stage 7 — Share token gate + expiry page
 
 Pending.

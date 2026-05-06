@@ -61,9 +61,22 @@
     bindCopy(root);
   }
 
+  // Suggestion click → set form's prefix input, clear suggestion panel.
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-suggestion]");
+    if (!btn) return;
+    var form = btn.closest("form");
+    var input = form ? form.querySelector('input[name="prefix"]') : null;
+    if (input) {
+      input.value = btn.getAttribute("data-suggestion");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    var panel = btn.closest("#prefix-suggestions");
+    if (panel) panel.replaceChildren();
+  });
+
   refresh(document);
 
-  // Re-process newly-swapped fragments after HTMX swaps.
   document.body.addEventListener("htmx:afterSwap", function (e) {
     refresh(e.target);
   });
