@@ -10,7 +10,7 @@ Tracks implementation against [`docs/PLAN.md`](docs/PLAN.md).
 | 4 | Admin auth | ✅ |
 | 5 | Admin CRUD | ✅ |
 | 6 | Typeahead prefix picker | ✅ |
-| 7 | Share token gate + expiry page | ☐ |
+| 7 | Share token gate + expiry page | ✅ |
 | 8 | Share Turnstile interstitial | ☐ |
 | 9 | Share R2 fetch + cache | ☐ |
 | 10 | Directory listing fallback | ☐ |
@@ -76,6 +76,13 @@ Extending un-revokes (sets new expiry, clears `revokedAt`).
 - `public/admin.js` — click on any `[data-suggestion]` writes value into the closest form's `name="prefix"` input and clears the panel via `replaceChildren()`
 - Create form's prefix input fires `hx-trigger="input changed delay:200ms, focus"` against the endpoint; suggestions render into `#prefix-suggestions`
 
-## Stage 7 — Share token gate + expiry page
+## Stage 7 — Share token gate + expiry page ✅
+
+- `src/share/views/expired.tsx` — bare page, inline `<style>`, prefers-color-scheme aware, identical body for all three cases
+- `src/share/gate.tsx` — `evaluateToken(kv, token, now) → ok | missing | revoked | expired`, `expiryResponse(c, kind)` (404 missing, 410 revoked/expired, `Cache-Control: no-store`, `X-Robots-Tag: noindex,nofollow`), `shareGate` middleware
+- `src/types.ts` — pulled `ShareEnv` (Bindings + Variables) into shared types
+- `src/share/routes.tsx` — adds `shareGate` after host classifier; valid token attaches `link` to context for stages 8–10
+
+## Stage 8 — Share interstitial
 
 Pending.

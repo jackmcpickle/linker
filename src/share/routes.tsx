@@ -1,8 +1,7 @@
 import { Hono } from "hono";
-import type { Env } from "../types";
+import type { ShareEnv } from "../types";
 import { classifyHost } from "../lib/dispatch";
-
-type ShareEnv = Env & { Variables: { token: string } };
+import { shareGate } from "./gate";
 
 const share = new Hono<ShareEnv>();
 
@@ -16,10 +15,17 @@ share.use("*", async (c, next) => {
   await next();
 });
 
+// Token gate — KV lookup, returns expiry page on missing/revoked/expired.
+share.use("*", shareGate);
+
+// Stage 7 placeholder — real serving (interstitial, R2 fetch, listing) lands in 8-10.
 share.all("*", (c) => {
-  const token = c.get("token");
+  const link = c.get("link");
   const path = new URL(c.req.url).pathname;
-  return c.text(`share token=${token} path=${path} (real serving comes in stages 7-10)`);
+  return c.text(
+    `valid share — token=${link.token} prefix=${link.prefix} path=${path}\n` +
+      `(turnstile interstitial in stage 8, R2 fetch in stage 9)`,
+  );
 });
 
 export default share;

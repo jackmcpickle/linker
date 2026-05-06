@@ -14,8 +14,6 @@ export type Bindings = {
   TURNSTILE_SECRET_KEY: string;
 };
 
-export type Env = { Bindings: Bindings };
-
 export type ShareLink = {
   token: string;
   name: string;
@@ -27,3 +25,6 @@ export type ShareLink = {
   viewCount: number;
   lastAccessedAt?: number;
 };
+
+export type Env = { Bindings: Bindings };
+export type ShareEnv = Env & { Variables: { token: string; link: ShareLink } };
