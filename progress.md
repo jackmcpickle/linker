@@ -8,7 +8,7 @@ Tracks implementation against [`docs/PLAN.md`](docs/PLAN.md).
 | 2 | SETUP docs (CF resources) | ✅ |
 | 3 | Worker dispatch (host-based routing) | ✅ |
 | 4 | Admin auth | ✅ |
-| 5 | Admin CRUD | ☐ |
+| 5 | Admin CRUD | ✅ |
 | 6 | Typeahead prefix picker | ☐ |
 | 7 | Share token gate + expiry page | ☐ |
 | 8 | Share Turnstile interstitial | ☐ |
@@ -55,6 +55,20 @@ Each sub-app is self-contained — the share app re-classifies host so it's test
 - `src/admin/routes.tsx` — `/_admin` GET (login or dash), `/_admin/login` POST (throttle → Turnstile → password compare → set cookie), `/_admin/logout` POST, asset passthrough for `style.css`/`login.js`/`favicon.ico`
 - Typecheck green, css rebuilt
 
-## Stage 5 — Admin CRUD
+## Stage 5 — Admin CRUD ✅
+
+- `src/lib/nanoid.ts` — `customAlphabet` 36-char lowercase alphanumeric, 10 chars (~2^51 entropy), hostname-safe; `isValidToken`
+- `src/lib/expiry.ts` — preset chips (1h/6h/1d/3d/1w/1mo), `DEFAULT_PRESET = '1w'`, `presetMs(id)`
+- `src/lib/time.ts` — `isoAt`, `relative`, `absolute` (server-side render; client refines per-TZ in `admin.js`)
+- `src/kv/links.ts` — `getLink`/`putLink`/`deleteLink`/`listLinks` against `LINKS` KV. Records duplicated in metadata so `list` returns the dashboard data in one call.
+- `src/admin/views/link-row.tsx` — view + edit modes, status badge (active/expired/revoked), copy URL button, extend menu (preset chips), edit/revoke/delete buttons all HTMX-driven
+- `src/admin/views/link-form.tsx` — create form with name, prefix, notes, preset chips (peer-checked styling)
+- `src/admin/views/dashboard.tsx` — full page with create form + `LinkList` (also exported for HTMX swap targets); empty state when no links
+- `public/admin.js` — TZ-local time rendering for `<time data-time-rel>`, clipboard buttons, re-binds after `htmx:afterSwap`
+- `src/admin/routes.tsx` — full CRUD: GET `/_admin/links` (list), POST (create), GET `:token` (cancel-edit re-fetch), GET `:token/edit` (edit form), PATCH `:token` (save), POST `:token/extend`, POST `:token/revoke`, DELETE `:token`. Typeahead stub returns empty for stage 6.
+
+Extending un-revokes (sets new expiry, clears `revokedAt`).
+
+## Stage 6 — Typeahead
 
 Pending.

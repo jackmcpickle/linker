@@ -1,7 +1,8 @@
 import { Hono } from "hono";
-import type { Env } from "../types";
+import type { Env, ShareLink } from "../types";
 import { LoginPage } from "./views/login";
-import { DashboardPage } from "./views/dashboard";
+import { DashboardPage, LinkList } from "./views/dashboard";
+import { LinkRow } from "./views/link-row";
 import {
   clearSessionCookie,
   clientIp,
@@ -15,18 +16,26 @@ import {
   recordLoginFailure,
 } from "../lib/throttle";
 import { verifyTurnstile } from "../lib/turnstile";
+import { getLink, listLinks, putLink, deleteLink } from "../kv/links";
+import { generateToken, isValidToken } from "../lib/nanoid";
+import { presetMs } from "../lib/expiry";
 
 const admin = new Hono<Env>();
 
-// Static asset passthrough — login.js, etc. served from /public via ASSETS binding.
+// ---------- static asset passthrough ----------
 admin.get("/login.js", async (c) => c.env.ASSETS.fetch(c.req.raw));
+admin.get("/admin.js", async (c) => c.env.ASSETS.fetch(c.req.raw));
 admin.get("/style.css", async (c) => c.env.ASSETS.fetch(c.req.raw));
 admin.get("/favicon.ico", async (c) => c.env.ASSETS.fetch(c.req.raw));
 
+// ---------- public routes (login) ----------
 admin.get("/", (c) => c.redirect("/_admin", 303));
 
 admin.get("/_admin", async (c) => {
-  if (await isAuthed(c)) return c.html(<DashboardPage />);
+  if (await isAuthed(c)) {
+    const links = await listLinks(c.env.LINKS);
+    return c.html(<DashboardPage links={links} shareDomain={c.env.SHARE_DOMAIN} />);
+  }
   return c.html(<LoginPage turnstileSiteKey={c.env.TURNSTILE_SITE_KEY} />);
 });
 
@@ -61,8 +70,6 @@ admin.post("/_admin/login", async (c) => {
     );
   }
 
-  // Constant-time password compare. Both fixed-length is best, but in practice
-  // string compare with timing-safe XOR is fine vs. an attacker without local access.
   if (!constantTimeEqual(password, c.env.ADMIN_PASSWORD)) {
     const recorded = await recordLoginFailure(c.env.THROTTLE, ip, now);
     if (!recorded.allowed) {
@@ -93,11 +100,132 @@ admin.post("/_admin/logout", async (c) => {
   return c.redirect("/_admin", 303);
 });
 
-// Authed routes — placeholder; real CRUD comes in stage 5.
+// ---------- authed routes ----------
 admin.use("/_admin/*", requireAuth);
-admin.get("/_admin/dashboard", (c) => c.html(<DashboardPage />));
+
+// list fragment (HTMX target after mutations)
+admin.get("/_admin/links", async (c) => {
+  const links = await listLinks(c.env.LINKS);
+  return c.html(<LinkList links={links} shareDomain={c.env.SHARE_DOMAIN} />);
+});
+
+// create
+admin.post("/_admin/links", async (c) => {
+  const form = await c.req.formData();
+  const name = String(form.get("name") ?? "").trim();
+  const prefix = normalizePrefix(String(form.get("prefix") ?? ""));
+  const notes = String(form.get("notes") ?? "").trim() || undefined;
+  const presetId = String(form.get("preset") ?? "");
+  const ms = presetMs(presetId);
+
+  if (!name || !prefix || ms === null) {
+    return c.text("invalid input", 400);
+  }
+
+  const now = Date.now();
+  const link: ShareLink = {
+    token: generateToken(),
+    name,
+    notes,
+    prefix,
+    createdAt: now,
+    expiresAt: now + ms,
+    viewCount: 0,
+  };
+  await putLink(c.env.LINKS, link);
+
+  const links = await listLinks(c.env.LINKS);
+  return c.html(<LinkList links={links} shareDomain={c.env.SHARE_DOMAIN} />);
+});
+
+// single row (used by Cancel on edit form)
+admin.get("/_admin/links/:token", async (c) => {
+  const token = c.req.param("token");
+  if (!isValidToken(token)) return c.text("not found", 404);
+  const link = await getLink(c.env.LINKS, token);
+  if (!link) return c.text("not found", 404);
+  return c.html(<LinkRow link={link} shareDomain={c.env.SHARE_DOMAIN} />);
+});
+
+// edit form (inline)
+admin.get("/_admin/links/:token/edit", async (c) => {
+  const token = c.req.param("token");
+  if (!isValidToken(token)) return c.text("not found", 404);
+  const link = await getLink(c.env.LINKS, token);
+  if (!link) return c.text("not found", 404);
+  return c.html(<LinkRow link={link} shareDomain={c.env.SHARE_DOMAIN} mode="edit" />);
+});
+
+// update name/prefix/notes
+admin.patch("/_admin/links/:token", async (c) => {
+  const token = c.req.param("token");
+  if (!isValidToken(token)) return c.text("not found", 404);
+  const link = await getLink(c.env.LINKS, token);
+  if (!link) return c.text("not found", 404);
+
+  const form = await c.req.formData();
+  const name = String(form.get("name") ?? "").trim();
+  const prefix = normalizePrefix(String(form.get("prefix") ?? ""));
+  const notes = String(form.get("notes") ?? "").trim() || undefined;
+
+  if (!name || !prefix) return c.text("invalid input", 400);
+
+  const updated: ShareLink = { ...link, name, prefix, notes };
+  await putLink(c.env.LINKS, updated);
+  return c.html(<LinkRow link={updated} shareDomain={c.env.SHARE_DOMAIN} />);
+});
+
+// extend expiry — sets new absolute expiresAt = now + preset (un-revokes if revoked)
+admin.post("/_admin/links/:token/extend", async (c) => {
+  const token = c.req.param("token");
+  if (!isValidToken(token)) return c.text("not found", 404);
+  const link = await getLink(c.env.LINKS, token);
+  if (!link) return c.text("not found", 404);
+
+  const form = await c.req.formData();
+  const presetId = String(form.get("preset") ?? "");
+  const ms = presetMs(presetId);
+  if (ms === null) return c.text("invalid preset", 400);
+
+  const now = Date.now();
+  const updated: ShareLink = {
+    ...link,
+    expiresAt: now + ms,
+    revokedAt: undefined,
+  };
+  await putLink(c.env.LINKS, updated);
+  return c.html(<LinkRow link={updated} shareDomain={c.env.SHARE_DOMAIN} />);
+});
+
+// revoke
+admin.post("/_admin/links/:token/revoke", async (c) => {
+  const token = c.req.param("token");
+  if (!isValidToken(token)) return c.text("not found", 404);
+  const link = await getLink(c.env.LINKS, token);
+  if (!link) return c.text("not found", 404);
+  const updated: ShareLink = { ...link, revokedAt: Date.now() };
+  await putLink(c.env.LINKS, updated);
+  return c.html(<LinkRow link={updated} shareDomain={c.env.SHARE_DOMAIN} />);
+});
+
+// hard delete — return empty so HTMX outerHTML swap removes the row
+admin.delete("/_admin/links/:token", async (c) => {
+  const token = c.req.param("token");
+  if (!isValidToken(token)) return c.text("not found", 404);
+  await deleteLink(c.env.LINKS, token);
+  return c.body("", 200);
+});
+
+// typeahead — real impl in stage 6
+admin.get("/_admin/prefixes", (c) => c.html("<!-- typeahead in stage 6 -->"));
 
 admin.all("*", (c) => c.text("not found", 404));
+
+// ---------- helpers ----------
+
+function normalizePrefix(input: string): string {
+  return input.trim().replace(/^\/+/, "");
+}
 
 function constantTimeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
