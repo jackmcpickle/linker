@@ -178,7 +178,7 @@ export async function serveShare(
 
     const cached = await cache.match(cacheKey);
     if (cached) {
-        countViewIfHtml(c.env, link, cached, ctx);
+        countView(c.env, link, cached, path, ctx);
         return withBrowserNoStore(cached);
     }
 
@@ -216,7 +216,7 @@ export async function serveShare(
                 const browserRes = withBrowserNoStore(
                     new Response(browserBody, { status: 200, headers: listingHtml.headers }),
                 );
-                countViewIfHtml(c.env, link, browserRes, ctx);
+                countView(c.env, link, browserRes, path, ctx);
                 return browserRes;
             }
         }
@@ -240,19 +240,23 @@ export async function serveShare(
     const browserRes = withBrowserNoStore(
         new Response(browserBody, { status: r2res.status, headers: r2res.headers }),
     );
-    countViewIfHtml(c.env, link, browserRes, ctx);
+    countView(c.env, link, browserRes, path, ctx);
     return browserRes;
 }
 
-function countViewIfHtml(
+// Count a view when the recipient lands on the share root (`/`) or navigates
+// to an HTML page within a folder share. Sub-asset requests (images, css, js)
+// don't count.
+function countView(
     env: ShareEnv['Bindings'],
     link: ShareLink,
     res: Response,
+    path: string,
     ctx: ExecutionContext,
 ): void {
-    const ct = res.headers.get('Content-Type') ?? '';
-    if (!isHtmlMime(ct)) return;
     if (res.status !== 200) return;
+    const ct = res.headers.get('Content-Type') ?? '';
+    if (!isHtmlMime(ct) && path !== '/') return;
     ctx.waitUntil(
         putLink(env.LINKS, {
             ...link,
