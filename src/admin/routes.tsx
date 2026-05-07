@@ -133,7 +133,12 @@ admin.post('/_admin/links', async (c) => {
         expiresAt: link.expiresAt,
     });
 
+    // KV list is eventually consistent — splice the new link in so it shows
+    // up immediately, even if `listLinks` hasn't seen the put yet.
     const links = await listLinks(c.env.LINKS);
+    if (!links.some((l) => l.token === link.token)) {
+        links.unshift(link);
+    }
     return c.html(
         withToast(
             <LinkList links={links} shareDomain={c.env.SHARE_DOMAIN} />,
