@@ -14,7 +14,7 @@
         }
         widgetId = window.turnstile.render('#ts-container', {
             sitekey: siteKey,
-            size: 'invisible',
+            execution: 'execute',
             callback: function (token) {
                 var input = document.createElement('input');
                 input.type = 'hidden';
