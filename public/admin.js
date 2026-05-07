@@ -129,7 +129,8 @@
         span.textContent = message;
         var close = document.createElement('button');
         close.type = 'button';
-        close.className = '-mr-1 -mt-0.5 px-1 text-current opacity-60 hover:opacity-100';
+        close.className =
+            '-mr-1 -mt-0.5 px-1 text-current opacity-60 hover:opacity-100';
         close.setAttribute('data-toast-dismiss', '');
         close.setAttribute('aria-label', 'Dismiss');
         close.textContent = '×';
@@ -175,5 +176,83 @@
         )
             return;
         form.classList.add('htmx-request');
+    });
+
+    // ---------- file browser: filter input ----------
+    document.addEventListener('input', function (e) {
+        var input = e.target;
+        if (!input || !input.matches || !input.matches('[data-filter]')) return;
+        var q = input.value.trim().toLowerCase();
+        var rows = document.querySelectorAll('#file-content [data-name]');
+        rows.forEach(function (row) {
+            var name = row.getAttribute('data-name') || '';
+            row.style.display = !q || name.indexOf(q) !== -1 ? '' : 'none';
+        });
+    });
+
+    // ---------- file browser: drag and drop ----------
+    function bindDropzone(zone) {
+        if (zone.__dzBound) return;
+        zone.__dzBound = true;
+        var fileInput = zone.querySelector('input[type="file"]');
+        if (!fileInput) return;
+        ['dragenter', 'dragover'].forEach(function (ev) {
+            zone.addEventListener(ev, function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                zone.classList.add('ring-2', 'ring-zinc-900');
+            });
+        });
+        ['dragleave', 'drop'].forEach(function (ev) {
+            zone.addEventListener(ev, function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                zone.classList.remove('ring-2', 'ring-zinc-900');
+            });
+        });
+        zone.addEventListener('drop', function (e) {
+            var dt = e.dataTransfer;
+            if (!dt || !dt.files || dt.files.length === 0) return;
+            try {
+                fileInput.files = dt.files;
+                if (window.htmx) window.htmx.trigger(zone, 'submit');
+                else zone.requestSubmit();
+            } catch (_) {
+                // Some browsers reject programmatic FileList assignment.
+            }
+        });
+    }
+
+    function bindAllDropzones(root) {
+        (root || document)
+            .querySelectorAll('[data-dropzone]')
+            .forEach(bindDropzone);
+    }
+
+    // ---------- file browser: upload progress ----------
+    document.body.addEventListener('htmx:xhr:progress', function (e) {
+        var form = e.target;
+        if (!form || !form.matches || !form.matches('[data-dropzone]')) return;
+        var bar = form.querySelector('[data-upload-progress]');
+        if (!bar) return;
+        bar.classList.remove('hidden');
+        var d = e.detail;
+        if (d && d.lengthComputable && d.total > 0) {
+            bar.value = Math.round((d.loaded / d.total) * 100);
+        }
+    });
+    document.body.addEventListener('htmx:afterRequest', function (e) {
+        var form = e.target;
+        if (!form || !form.matches || !form.matches('[data-dropzone]')) return;
+        var bar = form.querySelector('[data-upload-progress]');
+        if (bar) {
+            bar.value = 0;
+            bar.classList.add('hidden');
+        }
+    });
+
+    bindAllDropzones(document);
+    document.body.addEventListener('htmx:afterSettle', function (e) {
+        bindAllDropzones(e.target);
     });
 })();

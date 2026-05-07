@@ -8,26 +8,50 @@ import { Spinner } from './components/spinner';
 type Props = {
     links: ShareLink[];
     shareDomain: string;
+    defaultPrefix?: string;
 };
 
-export const DashboardPage: FC<Props> = ({ links, shareDomain }) => (
+export const DashboardPage: FC<Props> = ({
+    links,
+    shareDomain,
+    defaultPrefix,
+}) => (
     <Layout title="Dashboard — habits-linker">
         <main class="mx-auto max-w-5xl px-4 py-8">
             <header class="mb-6 flex items-center justify-between">
-                <h1 class="text-xl font-semibold tracking-tight">Share links</h1>
-                <form method="post" action="/_admin/logout">
-                    <button class="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900">
-                        <Spinner />
-                        Sign out
-                    </button>
-                </form>
+                <h1 class="text-xl font-semibold tracking-tight">
+                    Share links
+                </h1>
+                <div class="flex items-center gap-3 text-sm">
+                    <a
+                        href="/_admin/files"
+                        class="text-zinc-500 hover:text-zinc-900"
+                    >
+                        Browse files
+                    </a>
+                    <form
+                        method="post"
+                        action="/_admin/logout"
+                    >
+                        <button class="inline-flex items-center gap-1 text-zinc-500 hover:text-zinc-900">
+                            <Spinner />
+                            Sign out
+                        </button>
+                    </form>
+                </div>
             </header>
 
-            <CreateLinkForm />
+            <CreateLinkForm defaultPrefix={defaultPrefix} />
 
-            <LinkList links={links} shareDomain={shareDomain} />
+            <LinkList
+                links={links}
+                shareDomain={shareDomain}
+            />
 
-            <script src="/admin.js" defer></script>
+            <script
+                src="/admin.js"
+                defer
+            ></script>
         </main>
     </Layout>
 );
@@ -42,7 +66,7 @@ export const LinkList: FC<Props> = ({ links, shareDomain }) => (
             <div class="rounded-xl border border-zinc-200 bg-white">
                 <table class="w-full text-sm">
                     <thead>
-                        <tr class="border-b border-zinc-200 bg-zinc-50 text-left text-xs uppercase tracking-wider text-zinc-500">
+                        <tr class="border-b border-zinc-200 bg-zinc-50 text-left text-xs tracking-wider text-zinc-500 uppercase">
                             <th class="px-4 py-2 font-medium">Link</th>
                             <th class="px-4 py-2 font-medium">URL</th>
                             <th class="px-4 py-2 font-medium">Status</th>
@@ -51,8 +75,11 @@ export const LinkList: FC<Props> = ({ links, shareDomain }) => (
                         </tr>
                     </thead>
                     <tbody>
-                        {links.map((link) => (
-                            <LinkRow link={link} shareDomain={shareDomain} />
+                        {links.map(link => (
+                            <LinkRow
+                                link={link}
+                                shareDomain={shareDomain}
+                            />
                         ))}
                     </tbody>
                 </table>
