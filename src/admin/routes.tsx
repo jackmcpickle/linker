@@ -11,6 +11,7 @@ import { generateToken, isValidToken } from '../lib/nanoid';
 import { presetMs } from '../lib/expiry';
 import { Suggestions } from './views/suggestions';
 import { log } from '../lib/log';
+import { toastError, withToast } from './lib/toast';
 
 const admin = new Hono<Env>();
 
@@ -111,7 +112,7 @@ admin.post('/_admin/links', async (c) => {
     const ms = presetMs(presetId);
 
     if (!name || !prefix || ms === null) {
-        return c.text('invalid input', 400);
+        return toastError(c, 'Invalid name, folder, or expiry.', 400);
     }
 
     const now = Date.now();
@@ -133,57 +134,69 @@ admin.post('/_admin/links', async (c) => {
     });
 
     const links = await listLinks(c.env.LINKS);
-    return c.html(<LinkList links={links} shareDomain={c.env.SHARE_DOMAIN} />);
+    return c.html(
+        withToast(
+            <LinkList links={links} shareDomain={c.env.SHARE_DOMAIN} />,
+            'success',
+            'Link created.',
+        ),
+    );
 });
 
 // single row (used by Cancel on edit form)
 admin.get('/_admin/links/:token', async (c) => {
     const token = c.req.param('token');
-    if (!isValidToken(token)) return c.text('not found', 404);
+    if (!isValidToken(token)) return toastError(c, 'Link not found.', 404);
     const link = await getLink(c.env.LINKS, token);
-    if (!link) return c.text('not found', 404);
+    if (!link) return toastError(c, 'Link not found.', 404);
     return c.html(<LinkRow link={link} shareDomain={c.env.SHARE_DOMAIN} />);
 });
 
 // edit form (inline)
 admin.get('/_admin/links/:token/edit', async (c) => {
     const token = c.req.param('token');
-    if (!isValidToken(token)) return c.text('not found', 404);
+    if (!isValidToken(token)) return toastError(c, 'Link not found.', 404);
     const link = await getLink(c.env.LINKS, token);
-    if (!link) return c.text('not found', 404);
+    if (!link) return toastError(c, 'Link not found.', 404);
     return c.html(<LinkRow link={link} shareDomain={c.env.SHARE_DOMAIN} mode="edit" />);
 });
 
 // update name/prefix/notes
 admin.patch('/_admin/links/:token', async (c) => {
     const token = c.req.param('token');
-    if (!isValidToken(token)) return c.text('not found', 404);
+    if (!isValidToken(token)) return toastError(c, 'Link not found.', 404);
     const link = await getLink(c.env.LINKS, token);
-    if (!link) return c.text('not found', 404);
+    if (!link) return toastError(c, 'Link not found.', 404);
 
     const form = await c.req.formData();
     const name = String(form.get('name') ?? '').trim();
     const prefix = normalizePrefix(String(form.get('prefix') ?? ''));
     const notes = String(form.get('notes') ?? '').trim() || undefined;
 
-    if (!name || !prefix) return c.text('invalid input', 400);
+    if (!name || !prefix) return toastError(c, 'Name and folder required.', 400);
 
     const updated: ShareLink = { ...link, name, prefix, notes };
     await putLink(c.env.LINKS, updated);
-    return c.html(<LinkRow link={updated} shareDomain={c.env.SHARE_DOMAIN} />);
+    return c.html(
+        withToast(
+            <LinkRow link={updated} shareDomain={c.env.SHARE_DOMAIN} />,
+            'success',
+            'Link updated.',
+        ),
+    );
 });
 
 // extend expiry — sets new absolute expiresAt = now + preset (un-revokes if revoked)
 admin.post('/_admin/links/:token/extend', async (c) => {
     const token = c.req.param('token');
-    if (!isValidToken(token)) return c.text('not found', 404);
+    if (!isValidToken(token)) return toastError(c, 'Link not found.', 404);
     const link = await getLink(c.env.LINKS, token);
-    if (!link) return c.text('not found', 404);
+    if (!link) return toastError(c, 'Link not found.', 404);
 
     const form = await c.req.formData();
     const presetId = String(form.get('preset') ?? '');
     const ms = presetMs(presetId);
-    if (ms === null) return c.text('invalid preset', 400);
+    if (ms === null) return toastError(c, 'Invalid expiry preset.', 400);
 
     const now = Date.now();
     const updated: ShareLink = {
@@ -193,28 +206,40 @@ admin.post('/_admin/links/:token/extend', async (c) => {
     };
     await putLink(c.env.LINKS, updated);
     log({ event: 'admin.link.extend', token, preset: presetId, expiresAt: updated.expiresAt });
-    return c.html(<LinkRow link={updated} shareDomain={c.env.SHARE_DOMAIN} />);
+    return c.html(
+        withToast(
+            <LinkRow link={updated} shareDomain={c.env.SHARE_DOMAIN} />,
+            'success',
+            `Extended to ${presetId}.`,
+        ),
+    );
 });
 
 // revoke
 admin.post('/_admin/links/:token/revoke', async (c) => {
     const token = c.req.param('token');
-    if (!isValidToken(token)) return c.text('not found', 404);
+    if (!isValidToken(token)) return toastError(c, 'Link not found.', 404);
     const link = await getLink(c.env.LINKS, token);
-    if (!link) return c.text('not found', 404);
+    if (!link) return toastError(c, 'Link not found.', 404);
     const updated: ShareLink = { ...link, revokedAt: Date.now() };
     await putLink(c.env.LINKS, updated);
     log({ event: 'admin.link.revoke', token });
-    return c.html(<LinkRow link={updated} shareDomain={c.env.SHARE_DOMAIN} />);
+    return c.html(
+        withToast(
+            <LinkRow link={updated} shareDomain={c.env.SHARE_DOMAIN} />,
+            'success',
+            'Link revoked.',
+        ),
+    );
 });
 
 // hard delete — return empty so HTMX outerHTML swap removes the row
 admin.delete('/_admin/links/:token', async (c) => {
     const token = c.req.param('token');
-    if (!isValidToken(token)) return c.text('not found', 404);
+    if (!isValidToken(token)) return toastError(c, 'Link not found.', 404);
     await deleteLink(c.env.LINKS, token);
     log({ event: 'admin.link.delete', token });
-    return c.body('', 200);
+    return c.html(withToast('', 'success', 'Link deleted.'));
 });
 
 // typeahead — bucket.list({ prefix, delimiter: '/' })

@@ -3,6 +3,7 @@ import adminApp from './admin/routes';
 import shareApp from './share/routes';
 import { classifyHost } from './lib/dispatch';
 import { log } from './lib/log';
+import { htmxToastResponse } from './admin/lib/toast';
 
 export default {
     async fetch(req: Request, env: Bindings, ctx: ExecutionContext): Promise<Response> {
@@ -27,6 +28,9 @@ export default {
             const message = err instanceof Error ? err.message : String(err);
             const stack = err instanceof Error ? err.stack : undefined;
             log({ event: 'fetch.error', message, stack });
+            if (req.headers.get('HX-Request')) {
+                return htmxToastResponse('Something went wrong. Please try again.');
+            }
             return new Response('internal error', {
                 status: 500,
                 headers: { 'Cache-Control': 'no-store' },

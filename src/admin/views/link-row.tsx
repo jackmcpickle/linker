@@ -168,14 +168,21 @@ const LinkRowEdit: FC<{ link: ShareLink }> = ({ link }) => (
                     />
                 </label>
                 <label class="block">
-                    <span class="block text-xs text-zinc-500 mb-1">Prefix</span>
+                    <span class="block text-xs text-zinc-500 mb-1">Folder</span>
                     <input
                         type="text"
                         name="prefix"
                         value={link.prefix}
                         required
+                        autocomplete="off"
                         class="w-full rounded-md border border-zinc-300 px-2 py-1 font-mono text-sm"
+                        hx-get="/_admin/prefixes"
+                        hx-trigger="input changed delay:200ms, focus"
+                        hx-target="next .prefix-suggestions"
+                        hx-swap="innerHTML"
+                        hx-params="prefix"
                     />
+                    <div class="prefix-suggestions mt-1 text-xs text-zinc-500"></div>
                 </label>
                 <label class="block md:col-span-2">
                     <span class="block text-xs text-zinc-500 mb-1">Notes</span>

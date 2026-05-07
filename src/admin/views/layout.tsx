@@ -1,4 +1,5 @@
 import type { FC, PropsWithChildren } from 'hono/jsx';
+import { ToastRegion } from './components/toast';
 
 type Props = PropsWithChildren<{ title: string; turnstileSiteKey?: string }>;
 
@@ -19,6 +20,9 @@ export const Layout: FC<Props> = ({ title, turnstileSiteKey, children }) => (
                 ></script>
             ) : null}
         </head>
-        <body class="min-h-dvh bg-zinc-50 text-zinc-900 antialiased">{children}</body>
+        <body class="min-h-dvh bg-zinc-50 text-zinc-900 antialiased">
+            {children}
+            <ToastRegion />
+        </body>
     </html>
 );

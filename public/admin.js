@@ -71,15 +71,96 @@
             input.value = btn.getAttribute('data-suggestion');
             input.dispatchEvent(new Event('input', { bubbles: true }));
         }
-        var panel = btn.closest('#prefix-suggestions');
+        var panel = btn.closest('.prefix-suggestions');
         if (panel) panel.replaceChildren();
     });
 
-    refresh(document);
+    // ---------- toasts ----------
+    // Allow htmx to process 4xx/5xx responses so the OOB toast in the body is
+    // applied. The handler still respects HX-Reswap: none, so the original
+    // target is left alone on errors.
+    if (window.htmx && window.htmx.config) {
+        window.htmx.config.responseHandling = [
+            { code: '204', swap: false },
+            { code: '[23]..', swap: true },
+            { code: '[45]..', swap: true, error: true },
+            { code: '...', swap: false },
+        ];
+    }
 
-    document.body.addEventListener('htmx:afterSwap', function (e) {
-        refresh(e.target);
+    var TOAST_TIMEOUT_MS = 4000;
+
+    function dismissToast(el) {
+        if (!el || el.__dismissing) return;
+        el.__dismissing = true;
+        el.classList.add('toast--dismissing');
+        setTimeout(function () {
+            if (el.parentNode) el.parentNode.removeChild(el);
+        }, 180);
+    }
+
+    function bindToasts() {
+        var region = document.getElementById('toast-region');
+        if (!region) return;
+        region.querySelectorAll('[data-auto-dismiss]').forEach(function (el) {
+            if (el.__bound) return;
+            el.__bound = true;
+            setTimeout(function () {
+                dismissToast(el);
+            }, TOAST_TIMEOUT_MS);
+        });
+    }
+
+    function fallbackToast(level, message) {
+        var region = document.getElementById('toast-region');
+        if (!region) return;
+        var colorClasses =
+            level === 'error'
+                ? ['border-red-200', 'bg-red-50', 'text-red-900']
+                : ['border-emerald-200', 'bg-emerald-50', 'text-emerald-900'];
+        var toast = document.createElement('div');
+        toast.className =
+            'toast pointer-events-auto flex items-start gap-2 rounded-md border px-3 py-2 text-sm shadow-sm ' +
+            colorClasses.join(' ');
+        toast.setAttribute('data-toast-level', level);
+        toast.setAttribute('role', level === 'error' ? 'alert' : 'status');
+        var span = document.createElement('span');
+        span.className = 'flex-1';
+        span.textContent = message;
+        var close = document.createElement('button');
+        close.type = 'button';
+        close.className = '-mr-1 -mt-0.5 px-1 text-current opacity-60 hover:opacity-100';
+        close.setAttribute('data-toast-dismiss', '');
+        close.setAttribute('aria-label', 'Dismiss');
+        close.textContent = '×';
+        toast.appendChild(span);
+        toast.appendChild(close);
+        region.replaceChildren(toast);
+        bindToasts();
+    }
+
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest && e.target.closest('[data-toast-dismiss]');
+        if (!btn) return;
+        dismissToast(btn.closest('.toast'));
     });
+
+    document.body.addEventListener('htmx:afterSettle', function (e) {
+        refresh(e.target);
+        bindToasts();
+    });
+    document.body.addEventListener('htmx:oobAfterSwap', function () {
+        bindToasts();
+    });
+    document.body.addEventListener('htmx:sendError', function () {
+        fallbackToast('error', 'Network error. Please try again.');
+    });
+    document.body.addEventListener('htmx:timeout', function () {
+        fallbackToast('error', 'Request timed out. Please try again.');
+    });
+
+    refresh(document);
+    bindToasts();
 
     // Show spinner on native (non-htmx) form submits — htmx forms get the
     // class automatically.

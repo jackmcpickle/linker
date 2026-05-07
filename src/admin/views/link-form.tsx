@@ -23,7 +23,7 @@ export const CreateLinkForm: FC = () => (
                 />
             </label>
             <label class="block">
-                <span class="block text-xs text-zinc-500 mb-1">R2 prefix</span>
+                <span class="block text-xs text-zinc-500 mb-1">Folder</span>
                 <input
                     type="text"
                     name="prefix"
@@ -33,11 +33,11 @@ export const CreateLinkForm: FC = () => (
                     class="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm"
                     hx-get="/_admin/prefixes"
                     hx-trigger="input changed delay:200ms, focus"
-                    hx-target="#prefix-suggestions"
+                    hx-target="next .prefix-suggestions"
                     hx-swap="innerHTML"
                     hx-params="prefix"
                 />
-                <div id="prefix-suggestions" class="mt-1 text-xs text-zinc-500"></div>
+                <div class="prefix-suggestions mt-1 text-xs text-zinc-500"></div>
             </label>
         </div>
 
