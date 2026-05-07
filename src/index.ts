@@ -6,21 +6,23 @@ import { log } from './lib/log';
 
 export default {
     async fetch(req: Request, env: Bindings, ctx: ExecutionContext): Promise<Response> {
+        const url = new URL(req.url);
+        if (url.pathname === '/health') return new Response('ok');
+
+        const host = req.headers.get('host') ?? '';
+        const cls = classifyHost(host, env.SHARE_DOMAIN, env.ADMIN_HOST);
+
+        // Unknown host → throw uncaught so CF Worker Route "Fail open" mode bypasses
+        // the worker and falls through to the host's regular DNS record. Reserved
+        // subs (www, info, autodiscover, …) must have their own DNS records to land
+        // anywhere real. Must throw BEFORE the try/catch below.
+        if (cls.kind === 'unknown') {
+            throw new Error(`fail-open: unknown host ${host}`);
+        }
+
         try {
-            const url = new URL(req.url);
-            if (url.pathname === '/health') return new Response('ok');
-
-            const host = req.headers.get('host') ?? '';
-            const cls = classifyHost(host, env.SHARE_DOMAIN);
-
-            switch (cls.kind) {
-                case 'admin':
-                    return await adminApp.fetch(req, env, ctx);
-                case 'share':
-                    return await shareApp.fetch(req, env, ctx);
-                default:
-                    return new Response(`unknown host: ${host}`, { status: 404 });
-            }
+            if (cls.kind === 'admin') return await adminApp.fetch(req, env, ctx);
+            return await shareApp.fetch(req, env, ctx);
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             const stack = err instanceof Error ? err.stack : undefined;

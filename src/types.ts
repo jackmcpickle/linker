@@ -6,6 +6,7 @@ export type Bindings = {
 
     // vars
     SHARE_DOMAIN: string;
+    ADMIN_HOST: string;
     TURNSTILE_SITE_KEY: string;
 
     // secrets

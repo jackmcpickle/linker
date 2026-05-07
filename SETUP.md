@@ -36,23 +36,15 @@ Each command prints an `id`. Paste into `wrangler.jsonc → kv_namespaces`:
 
 ## 3. Turnstile site
 
-1. Dashboard → Turnstile → Add site.
-2. Domain: `linker.habitsofmind.com.au`.
+1. Dashboard → Turnstile → Add site (or edit existing).
+2. Domains: `linker.habitsofmind.com.au`, `*.habitsofmind.com.au`.
 3. Mode: **Invisible**.
 4. Copy site key into `wrangler.jsonc → vars.TURNSTILE_SITE_KEY`.
 5. Copy secret key — set as Worker secret in step 5.
 
-## 4. Wildcard SSL cert (the only fiddly bit)
+## 4. Wildcard SSL cert
 
-CF free Universal SSL covers `*.habitsofmind.com.au` (depth 1). It does **not** cover `*.linker.habitsofmind.com.au` (depth 2).
-
-Pick one option:
-
-- **A. Advanced Certificate Manager** (~$10/mo). Dashboard → SSL/TLS → Edge Certificates → Order Advanced Certificate. Hostnames: `linker.habitsofmind.com.au`, `*.linker.habitsofmind.com.au`. Validation: TXT record (auto). Cleanest path.
-- **B. Total TLS** (Pro plan or higher). Auto-issues certs for all subdomains. Bundled with paid plans.
-- **C. Cloudflare for SaaS Custom Hostnames** (free up to 100 hostnames). Each share token would register as a custom hostname on creation, cert provisioned per-hostname. Adds wrangler API call to share creation flow. Free, but more code.
-
-**Recommended: A** for simplicity. C is the free path if cost is the issue.
+Free Universal SSL covers `*.habitsofmind.com.au` (depth-1) — no action needed. Admin sits at `linker.habitsofmind.com.au` (single hostname, also covered). Shares sit at `<token>.habitsofmind.com.au` (depth-1 wildcard, covered).
 
 ## 5. Secrets
 
@@ -74,26 +66,34 @@ Each prompts for a value. Pipe via stdin if you want to avoid the prompt.
 
 ## 6. DNS records
 
-For the apex (`linker.habitsofmind.com.au`): Workers `custom_domain: true` provisions this automatically on first deploy.
+For admin (`linker.habitsofmind.com.au`): Workers `custom_domain: true` provisions this automatically on first deploy.
 
-For the wildcard (`*.linker.habitsofmind.com.au`): add a proxied DNS record manually before deploy.
+For shares (`*.habitsofmind.com.au`): add a proxied wildcard DNS record manually before deploy.
 
 Dashboard → DNS → Add record:
 
 - Type: `AAAA`
-- Name: `*.linker`
+- Name: `*`
 - IPv6: `100::`
 - Proxy: ✅ (orange cloud)
 
 Or via API:
 
 ```bash
-pnpm wrangler dns create habitsofmind.com.au '*.linker' AAAA 100:: --proxied
+pnpm wrangler dns create habitsofmind.com.au '*' AAAA 100:: --proxied
 ```
 
 (If wrangler doesn't expose `dns create` in your version, do it via the dashboard.)
 
-The Worker route `*.linker.habitsofmind.com.au/*` will catch traffic once the cert exists.
+**Reserved subdomains.** The wildcard route `*.habitsofmind.com.au/*` catches every subdomain. The worker checks the host: if it's not `linker` and the label isn't a valid 10-char nanoid token, it throws — CF "Fail open" mode (set in step 6a) then bypasses the worker and uses the host's regular DNS record. So any subdomain that needs to keep working (`www`, `info`, `autodiscover`, `mail`, etc.) **must have its own explicit DNS record** that's more specific than the wildcard. Specific records always take priority over the wildcard.
+
+## 6a. Worker route failure mode (dashboard-only)
+
+After first deploy, set the wildcard route to "Fail open" so unknown subs bypass the worker to their own DNS records.
+
+Dashboard → Workers & Pages → `linker` → Triggers → Routes → edit `*.habitsofmind.com.au/*` → **Failure mode: Fail open (proceed)**. Save.
+
+(Wrangler config can't set this — must be done in the dashboard. Default is "Fail closed" which would block reserved subs.)
 
 ## 7. Local dev secrets
 
@@ -112,7 +112,7 @@ pnpm tailwind     # build public/style.css
 pnpm wrangler deploy
 ```
 
-The custom domain for the apex is created on first deploy. Wildcard route is bound when the deploy lands.
+The admin custom domain is created on first deploy. Wildcard route is bound when the deploy lands. Don't forget step 6a (Fail open).
 
 ## 9. Transmit (uploads)
 

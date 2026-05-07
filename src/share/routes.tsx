@@ -17,7 +17,7 @@ share.get('/__challenge.js', async (c) => c.env.ASSETS.fetch(c.req.raw));
 // Parse token from Host.
 share.use('*', async (c, next) => {
     const host = c.req.header('host') ?? '';
-    const cls = classifyHost(host, c.env.SHARE_DOMAIN);
+    const cls = classifyHost(host, c.env.SHARE_DOMAIN, c.env.ADMIN_HOST);
     if (cls.kind !== 'share') return c.text('not a share host', 400);
     c.set('token', cls.token);
     await next();

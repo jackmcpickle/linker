@@ -15,6 +15,7 @@ Tracks implementation against [`docs/PLAN.md`](docs/PLAN.md).
 |     9 | Share R2 fetch + cache               |   ✅   |
 |    10 | Directory listing fallback           |   ✅   |
 |    11 | Polish                               |   ✅   |
+|    12 | Flatten domain (depth-1 + fail-open) |   ✅   |
 
 Legend: ☐ pending · ⏳ in progress · ✅ done
 
@@ -133,11 +134,25 @@ Extending un-revokes (sets new expiry, clears `revokedAt`).
 - Browser-local TZ rendering via `admin.js` already shipped in stage 5
 - Typecheck green, css rebuilt
 
+## Stage 12 — Flatten domain ✅
+
+Sidestep ACM cost by collapsing shares from depth-2 to depth-1 wildcard.
+
+- Routes: admin stays at `linker.habitsofmind.com.au` (custom_domain). Shares move to `<token>.habitsofmind.com.au` (was `<token>.linker.…`). Both depth-1 → covered by free Universal SSL.
+- `wrangler.jsonc` — wildcard route `*.habitsofmind.com.au/*` (zone_name unchanged); `vars.SHARE_DOMAIN = "habitsofmind.com.au"`; new `vars.ADMIN_HOST = "linker.habitsofmind.com.au"`.
+- `src/types.ts` — `ADMIN_HOST: string` added to `Bindings`.
+- `src/lib/dispatch.ts` — `classifyHost(host, shareDomain, adminHost)`. Admin matched by exact `adminHost`. Share label gated by strict `isValidToken` (10-char `[a-z0-9]`) so reserved subs (`www`, `info`, `autodiscover`, `linker`, …) all classify as `unknown`.
+- `src/index.ts` — `unknown` host throws BEFORE try/catch so the exception is uncaught. Combined with CF Worker Route "Fail open (proceed)", unknown subs bypass the worker to their own DNS records.
+- `SETUP.md` — cert section reduced to "Universal SSL covers it"; DNS wildcard `*.linker` → `*`; new section 6a for the dashboard fail-open toggle.
+- Post-deploy cleanup: delete DNS `*.linker` record; cancel ACM cert.
+
 ## Done
 
 All stages complete. Pre-deploy checklist:
 
-1. Follow `SETUP.md` for CF resources (R2, KV, secrets, Turnstile, wildcard SSL)
-2. Replace placeholders in `wrangler.jsonc` (KV namespace IDs, Turnstile site key)
-3. `pnpm tailwind && pnpm wrangler deploy`
-4. Test login → create share → visit subdomain → Turnstile → content serves
+1. Follow `SETUP.md` for CF resources (R2, KV, secrets, Turnstile, DNS).
+2. Replace placeholders in `wrangler.jsonc` (KV namespace IDs, Turnstile site key).
+3. `pnpm tailwind && pnpm wrangler deploy`.
+4. Dashboard step 6a: set wildcard route Failure mode = **Fail open**.
+5. Post-deploy cleanup: delete `*.linker.habitsofmind.com.au` DNS record + cancel ACM cert.
+6. Test login → create share → visit `<token>.habitsofmind.com.au` → Turnstile → content serves; `www.habitsofmind.com.au` still reaches existing origin.

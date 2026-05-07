@@ -2,24 +2,35 @@
     "$schema": "node_modules/wrangler/config-schema.json",
     "name": "linker",
     "main": "src/index.ts",
-    "compatibility_date": "2025-01-01",
-    "compatibility_flags": ["nodejs_compat"],
-    "observability": {
-        "enabled": true,
-        "head_sampling_rate": 1,
+    "workers_dev": true,
+    "compatibility_date": "2025-05-01",
+    "compatibility_flags": [
+        "nodejs_compat"
+    ],
+    "placement": {
+        // Use one of the following options (mutually exclusive):
+        "mode": "smart",
     },
-    // Two routes: apex (admin) + wildcard (shares).
-    // Apex uses custom_domain so Workers manages the DNS record + cert.
-    // Wildcard uses route pattern + zone_name (parent zone).
-    // NOTE: free Universal SSL does NOT cover *.linker.habitsofmind.com.au
-    // (depth-2 wildcard). See SETUP.md for cert options.
+    "observability": {
+        "logs": {
+            "enabled": true,
+            "invocation_logs": true
+        },
+        "traces": {
+            "enabled": true
+        }
+    },
+    // Two routes: admin host (custom_domain) + apex-level wildcard (shares).
+    // Depth-1 wildcard (*.habitsofmind.com.au) is covered by free Universal SSL.
+    // Wildcard route MUST be set to "Fail open (proceed)" in the CF dashboard so
+    // unknown subs (www, info, autodiscover, …) bypass the worker to their own DNS.
     "routes": [
         {
             "pattern": "linker.habitsofmind.com.au",
             "custom_domain": true,
         },
         {
-            "pattern": "*.linker.habitsofmind.com.au/*",
+            "pattern": "*.habitsofmind.com.au/*",
             "zone_name": "habitsofmind.com.au",
         },
     ],
@@ -48,7 +59,8 @@
         },
     ],
     "vars": {
-        "SHARE_DOMAIN": "linker.habitsofmind.com.au",
+        "SHARE_DOMAIN": "habitsofmind.com.au",
+        "ADMIN_HOST": "linker.habitsofmind.com.au",
         "TURNSTILE_SITE_KEY": "0x4AAAAAADKIGS8sR36T2rtx",
     },
     // Secrets (set via `wrangler secret put`):

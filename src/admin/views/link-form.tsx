@@ -7,7 +7,7 @@ export const CreateLinkForm: FC = () => (
         hx-post="/_admin/links"
         hx-target="#links-list"
         hx-swap="outerHTML"
-        hx-on--after-request="if(event.detail.successful) this.reset()"
+        hx-on--after-request="if(event.target===this && event.detail.successful) this.reset()"
         class="rounded-xl border border-zinc-200 bg-white p-5 mb-6 grid gap-3"
     >
         <div class="grid gap-3 md:grid-cols-2">

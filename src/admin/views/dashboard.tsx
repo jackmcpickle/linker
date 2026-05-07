@@ -35,7 +35,7 @@ export const LinkList: FC<Props> = ({ links, shareDomain }) => (
                 No share links yet — create one above.
             </div>
         ) : (
-            <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+            <div class="rounded-xl border border-zinc-200 bg-white">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b border-zinc-200 bg-zinc-50 text-left text-xs uppercase tracking-wider text-zinc-500">
