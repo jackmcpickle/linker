@@ -6,7 +6,11 @@ import { log } from './lib/log';
 import { htmxToastResponse } from './admin/lib/toast';
 
 export default {
-    async fetch(req: Request, env: Bindings, ctx: ExecutionContext): Promise<Response> {
+    async fetch(
+        req: Request,
+        env: Bindings,
+        ctx: ExecutionContext,
+    ): Promise<Response> {
         const url = new URL(req.url);
         if (url.pathname === '/health') return new Response('ok');
 
@@ -22,14 +26,17 @@ export default {
         }
 
         try {
-            if (cls.kind === 'admin') return await adminApp.fetch(req, env, ctx);
+            if (cls.kind === 'admin')
+                return await adminApp.fetch(req, env, ctx);
             return await shareApp.fetch(req, env, ctx);
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             const stack = err instanceof Error ? err.stack : undefined;
             log({ event: 'fetch.error', message, stack });
             if (req.headers.get('HX-Request')) {
-                return htmxToastResponse('Something went wrong. Please try again.');
+                return htmxToastResponse(
+                    'Something went wrong. Please try again.',
+                );
             }
             return new Response('internal error', {
                 status: 500,

@@ -8,9 +8,16 @@ type Props = {
     lockedUntil?: number;
 };
 
-export const LoginPage: FC<Props> = ({ turnstileSiteKey, error, lockedUntil }) => (
-    <Layout title="Sign in — habits-linker" turnstileSiteKey={turnstileSiteKey}>
-        <main class="grid place-items-center min-h-dvh px-4">
+export const LoginPage: FC<Props> = ({
+    turnstileSiteKey,
+    error,
+    lockedUntil,
+}) => (
+    <Layout
+        title="Sign in — habits-linker"
+        turnstileSiteKey={turnstileSiteKey}
+    >
+        <main class="grid min-h-dvh place-items-center px-4">
             <form
                 id="login-form"
                 method="post"
@@ -18,23 +25,29 @@ export const LoginPage: FC<Props> = ({ turnstileSiteKey, error, lockedUntil }) =
                 data-turnstile-site-key={turnstileSiteKey}
                 class="w-full max-w-sm space-y-4 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
             >
-                <h1 class="text-lg font-semibold tracking-tight">habits-linker</h1>
-                <p class="text-sm text-zinc-500">Sign in to manage share links.</p>
+                <h1 class="text-lg font-semibold tracking-tight">
+                    habits-linker
+                </h1>
+                <p class="text-sm text-zinc-500">
+                    Sign in to manage share links.
+                </p>
 
                 <label class="block">
-                    <span class="block text-sm font-medium mb-1">Password</span>
+                    <span class="mb-1 block text-sm font-medium">Password</span>
                     <input
                         type="password"
                         name="password"
                         required
                         autofocus
                         autocomplete="current-password"
-                        class="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400"
+                        class="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-900/10"
                     />
                 </label>
 
                 {error ? (
-                    <p class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+                    <p class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+                        {error}
+                    </p>
                 ) : null}
                 {lockedUntil ? (
                     <p
@@ -56,7 +69,10 @@ export const LoginPage: FC<Props> = ({ turnstileSiteKey, error, lockedUntil }) =
                 </button>
             </form>
 
-            <script src="/login.js" defer></script>
+            <script
+                src="/login.js"
+                defer
+            ></script>
         </main>
     </Layout>
 );

@@ -12,7 +12,7 @@ const share = new Hono<ShareEnv>();
 
 // Asset passthrough — the challenge bootstrap script only.
 // Other admin assets are not exposed on share subdomains.
-share.get('/__challenge.js', async (c) => c.env.ASSETS.fetch(c.req.raw));
+share.get('/__challenge.js', async c => c.env.ASSETS.fetch(c.req.raw));
 
 // Parse token from Host.
 share.use('*', async (c, next) => {
@@ -27,20 +27,31 @@ share.use('*', async (c, next) => {
 share.use('*', shareGate);
 
 // Verify endpoint — POST'ed by the interstitial after Turnstile solves.
-share.post('/__verify', async (c) => {
+share.post('/__verify', async c => {
     const link = c.get('link');
     const form = await c.req.formData();
     const tsToken = String(form.get('cf-turnstile-response') ?? '');
     const next = safeNext(String(form.get('next') ?? '/'));
 
-    const ts = await verifyTurnstile(tsToken, c.env.TURNSTILE_SECRET_KEY, clientIp(c));
+    const ts = await verifyTurnstile(
+        tsToken,
+        c.env.TURNSTILE_SECRET_KEY,
+        clientIp(c),
+    );
     if (!ts.ok) {
-        log({ event: 'share.verify.fail', token: link.token, errors: ts.errors });
-        return c.text('verification failed', 400, { 'Cache-Control': 'no-store' });
+        log({
+            event: 'share.verify.fail',
+            token: link.token,
+            errors: ts.errors,
+        });
+        return c.text('verification failed', 400, {
+            'Cache-Control': 'no-store',
+        });
     }
 
     const cookie = await buildShareCookie(c, link, c.env.COOKIE_HMAC_SECRET);
-    if (!cookie) return c.text('share expired', 410, { 'Cache-Control': 'no-store' });
+    if (!cookie)
+        return c.text('share expired', 410, { 'Cache-Control': 'no-store' });
 
     log({ event: 'share.verify.ok', token: link.token });
 
@@ -57,7 +68,11 @@ share.post('/__verify', async (c) => {
 // Recipient cookie gate — render interstitial if cookie missing/invalid.
 share.use('*', async (c, next) => {
     const link = c.get('link');
-    const ok = await hasValidShareCookie(c, link.token, c.env.COOKIE_HMAC_SECRET);
+    const ok = await hasValidShareCookie(
+        c,
+        link.token,
+        c.env.COOKIE_HMAC_SECRET,
+    );
     if (ok) return next();
 
     const url = new URL(c.req.url);
@@ -73,12 +88,12 @@ share.use('*', async (c, next) => {
 
 // Serve content. Only GET/HEAD allowed — anything else (POST/PUT/DELETE)
 // is bogus on a read-only share.
-share.on(['GET', 'HEAD'], '*', async (c) => {
+share.on(['GET', 'HEAD'], '*', async c => {
     const link = c.get('link');
     return serveShare(c, link, c.executionCtx);
 });
 
-share.all('*', (c) => c.text('method not allowed', 405));
+share.all('*', c => c.text('method not allowed', 405));
 
 // ---------- helpers ----------
 

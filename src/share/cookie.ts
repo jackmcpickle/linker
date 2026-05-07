@@ -1,5 +1,11 @@
 import type { Context } from 'hono';
-import { buildSetCookie, clearCookie, readCookie, signJSON, verifyJSON } from '../lib/cookie';
+import {
+    buildSetCookie,
+    clearCookie,
+    readCookie,
+    signJSON,
+    verifyJSON,
+} from '../lib/cookie';
 import type { ShareLink } from '../types';
 
 export const SHARE_COOKIE = 'share_validated';
@@ -8,7 +14,9 @@ const MAX_TTL_MS = 24 * 60 * 60 * 1000; // 24h ceiling
 type SharePayload = { token: string; iat: number; exp: number };
 
 function isHttps(c: Context): boolean {
-    const proto = c.req.header('x-forwarded-proto') ?? new URL(c.req.url).protocol.replace(':', '');
+    const proto =
+        c.req.header('x-forwarded-proto') ??
+        new URL(c.req.url).protocol.replace(':', '');
     return proto === 'https';
 }
 
@@ -21,7 +29,11 @@ export async function buildShareCookie(
     const now = Date.now();
     const ttl = Math.min(MAX_TTL_MS, link.expiresAt - now);
     if (ttl <= 0) return null;
-    const payload: SharePayload = { token: link.token, iat: now, exp: now + ttl };
+    const payload: SharePayload = {
+        token: link.token,
+        iat: now,
+        exp: now + ttl,
+    };
     const value = await signJSON(payload, secret);
     return buildSetCookie({
         name: SHARE_COOKIE,
@@ -45,6 +57,7 @@ export async function hasValidShareCookie(
     const payload = await verifyJSON<SharePayload>(raw, secret);
     if (!payload) return false;
     if (payload.token !== expectedToken) return false;
-    if (typeof payload.exp !== 'number' || payload.exp <= Date.now()) return false;
+    if (typeof payload.exp !== 'number' || payload.exp <= Date.now())
+        return false;
     return true;
 }

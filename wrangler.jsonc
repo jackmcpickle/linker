@@ -4,9 +4,7 @@
     "main": "src/index.ts",
     "workers_dev": true,
     "compatibility_date": "2025-05-01",
-    "compatibility_flags": [
-        "nodejs_compat"
-    ],
+    "compatibility_flags": ["nodejs_compat"],
     "placement": {
         // Use one of the following options (mutually exclusive):
         "mode": "smart",
@@ -14,11 +12,11 @@
     "observability": {
         "logs": {
             "enabled": true,
-            "invocation_logs": true
+            "invocation_logs": true,
         },
         "traces": {
-            "enabled": true
-        }
+            "enabled": true,
+        },
     },
     // Two routes: admin host (custom_domain) + apex-level wildcard (shares).
     // Depth-1 wildcard (*.habitsofmind.com.au) is covered by free Universal SSL.

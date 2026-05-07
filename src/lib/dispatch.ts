@@ -1,6 +1,9 @@
 import { isValidToken } from './nanoid';
 
-export type HostClass = { kind: 'admin' } | { kind: 'share'; token: string } | { kind: 'unknown' };
+export type HostClass =
+    | { kind: 'admin' }
+    | { kind: 'share'; token: string }
+    | { kind: 'unknown' };
 
 /**
  * Classify a request by Host header.
@@ -11,12 +14,21 @@ export type HostClass = { kind: 'admin' } | { kind: 'share'; token: string } | {
  * - `<token>.localhost` (single-label, !== 'admin') → share (dev only, format unchecked)
  * - anything else → unknown (caller should throw to trigger CF Fail open)
  */
-export function classifyHost(host: string, shareDomain: string, adminHost: string): HostClass {
+export function classifyHost(
+    host: string,
+    shareDomain: string,
+    adminHost: string,
+): HostClass {
     const h = host.split(':')[0]?.toLowerCase() ?? '';
     if (!h) return { kind: 'unknown' };
 
     const admin = adminHost.toLowerCase();
-    if (h === admin || h === 'localhost' || h === '127.0.0.1' || h === 'admin.localhost') {
+    if (
+        h === admin ||
+        h === 'localhost' ||
+        h === '127.0.0.1' ||
+        h === 'admin.localhost'
+    ) {
         return { kind: 'admin' };
     }
 

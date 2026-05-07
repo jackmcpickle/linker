@@ -16,7 +16,8 @@ pnpm wrangler r2 bucket create habits-linker-content --location oc
 
 `oc` = Oceania (Sydney/Auckland-area), closest hint.
 
-If the bucket name is taken in your account, pick another and update `wrangler.jsonc → r2_buckets[0].bucket_name`.
+If the bucket name is taken in your account, pick another and update
+`wrangler.jsonc → r2_buckets[0].bucket_name`.
 
 ## 2. KV namespaces
 
@@ -44,7 +45,9 @@ Each command prints an `id`. Paste into `wrangler.jsonc → kv_namespaces`:
 
 ## 4. Wildcard SSL cert
 
-Free Universal SSL covers `*.habitsofmind.com.au` (depth-1) — no action needed. Admin sits at `linker.habitsofmind.com.au` (single hostname, also covered). Shares sit at `<token>.habitsofmind.com.au` (depth-1 wildcard, covered).
+Free Universal SSL covers `*.habitsofmind.com.au` (depth-1) — no action needed.
+Admin sits at `linker.habitsofmind.com.au` (single hostname, also covered).
+Shares sit at `<token>.habitsofmind.com.au` (depth-1 wildcard, covered).
 
 ## 5. Secrets
 
@@ -66,9 +69,11 @@ Each prompts for a value. Pipe via stdin if you want to avoid the prompt.
 
 ## 6. DNS records
 
-For admin (`linker.habitsofmind.com.au`): Workers `custom_domain: true` provisions this automatically on first deploy.
+For admin (`linker.habitsofmind.com.au`): Workers `custom_domain: true`
+provisions this automatically on first deploy.
 
-For shares (`*.habitsofmind.com.au`): add a proxied wildcard DNS record manually before deploy.
+For shares (`*.habitsofmind.com.au`): add a proxied wildcard DNS record manually
+before deploy.
 
 Dashboard → DNS → Add record:
 
@@ -83,17 +88,27 @@ Or via API:
 pnpm wrangler dns create habitsofmind.com.au '*' AAAA 100:: --proxied
 ```
 
-(If wrangler doesn't expose `dns create` in your version, do it via the dashboard.)
+(If wrangler doesn't expose `dns create` in your version, do it via the
+dashboard.)
 
-**Reserved subdomains.** The wildcard route `*.habitsofmind.com.au/*` catches every subdomain. The worker checks the host: if it's not `linker` and the label isn't a valid 10-char nanoid token, it throws — CF "Fail open" mode (set in step 6a) then bypasses the worker and uses the host's regular DNS record. So any subdomain that needs to keep working (`www`, `info`, `autodiscover`, `mail`, etc.) **must have its own explicit DNS record** that's more specific than the wildcard. Specific records always take priority over the wildcard.
+**Reserved subdomains.** The wildcard route `*.habitsofmind.com.au/*` catches
+every subdomain. The worker checks the host: if it's not `linker` and the label
+isn't a valid 10-char nanoid token, it throws — CF "Fail open" mode (set in step
+6a) then bypasses the worker and uses the host's regular DNS record. So any
+subdomain that needs to keep working (`www`, `info`, `autodiscover`, `mail`,
+etc.) **must have its own explicit DNS record** that's more specific than the
+wildcard. Specific records always take priority over the wildcard.
 
 ## 6a. Worker route failure mode (dashboard-only)
 
-After first deploy, set the wildcard route to "Fail open" so unknown subs bypass the worker to their own DNS records.
+After first deploy, set the wildcard route to "Fail open" so unknown subs bypass
+the worker to their own DNS records.
 
-Dashboard → Workers & Pages → `linker` → Triggers → Routes → edit `*.habitsofmind.com.au/*` → **Failure mode: Fail open (proceed)**. Save.
+Dashboard → Workers & Pages → `linker` → Triggers → Routes → edit
+`*.habitsofmind.com.au/*` → **Failure mode: Fail open (proceed)**. Save.
 
-(Wrangler config can't set this — must be done in the dashboard. Default is "Fail closed" which would block reserved subs.)
+(Wrangler config can't set this — must be done in the dashboard. Default is
+"Fail closed" which would block reserved subs.)
 
 ## 7. Local dev secrets
 
@@ -103,7 +118,9 @@ cp .dev.vars.example .dev.vars
 # https://developers.cloudflare.com/turnstile/troubleshooting/testing/
 ```
 
-For local dev, use Turnstile's "always passes" sitekey `1x00000000000000000000AA` and secret `1x0000000000000000000000000000000AA` so you don't need a real challenge during dev.
+For local dev, use Turnstile's "always passes" sitekey
+`1x00000000000000000000AA` and secret `1x0000000000000000000000000000000AA` so
+you don't need a real challenge during dev.
 
 ## 8. First deploy
 
@@ -112,7 +129,8 @@ pnpm tailwind     # build public/style.css
 pnpm wrangler deploy
 ```
 
-The admin custom domain is created on first deploy. Wildcard route is bound when the deploy lands. Don't forget step 6a (Fail open).
+The admin custom domain is created on first deploy. Wildcard route is bound when
+the deploy lands. Don't forget step 6a (Fail open).
 
 ## 9. Transmit (uploads)
 
@@ -120,14 +138,16 @@ Out of scope for the app, but for completeness:
 
 1. Dashboard → R2 → Manage R2 API Tokens → Create API token.
 2. Permission: Object Read & Write, scope to `habits-linker-content`.
-3. Copy access key + secret + S3 endpoint (`https://<account-id>.r2.cloudflarestorage.com`).
+3. Copy access key + secret + S3 endpoint
+   (`https://<account-id>.r2.cloudflarestorage.com`).
 4. Transmit → New connection → Server type: **S3-compatible**.
     - Server: `<account-id>.r2.cloudflarestorage.com`
     - Port: 443
     - Protocol: HTTPS
     - Access Key ID / Secret: from step 3
     - Region: `auto`
-5. Create folders for each site you want to share, upload files. Then come back to the admin UI and create a share link pointing to that prefix.
+5. Create folders for each site you want to share, upload files. Then come back
+   to the admin UI and create a share link pointing to that prefix.
 
 ## Verifying setup
 

@@ -9,8 +9,14 @@ const k = (token: string) => `${KEY_PREFIX}${token}`;
  * Metadata limit is 1KB per key — our records are well under that.
  */
 
-export async function getLink(kv: KVNamespace, token: string): Promise<ShareLink | null> {
-    const res = await kv.getWithMetadata<ShareLink, ShareLink>(k(token), 'json');
+export async function getLink(
+    kv: KVNamespace,
+    token: string,
+): Promise<ShareLink | null> {
+    const res = await kv.getWithMetadata<ShareLink, ShareLink>(
+        k(token),
+        'json',
+    );
     if (res.value) return res.value;
     // fall back to metadata if value somehow missing
     return res.metadata ?? null;
@@ -20,7 +26,10 @@ export async function putLink(kv: KVNamespace, link: ShareLink): Promise<void> {
     await kv.put(k(link.token), JSON.stringify(link), { metadata: link });
 }
 
-export async function deleteLink(kv: KVNamespace, token: string): Promise<void> {
+export async function deleteLink(
+    kv: KVNamespace,
+    token: string,
+): Promise<void> {
     await kv.delete(k(token));
 }
 

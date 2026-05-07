@@ -12,7 +12,10 @@ const levelClass: Record<ToastLevel, string> = {
 // A single toast, wrapped in an OOB swap container that replaces the
 // contents of #toast-region. Errors persist; successes auto-dismiss.
 export const Toast: FC<Props> = ({ level, message }) => (
-    <div id="toast-region" hx-swap-oob="innerHTML">
+    <div
+        id="toast-region"
+        hx-swap-oob="innerHTML"
+    >
         <div
             class={`toast pointer-events-auto flex items-start gap-2 rounded-md border px-3 py-2 text-sm shadow-sm ${levelClass[level]}`}
             data-toast-level={level}
@@ -22,7 +25,7 @@ export const Toast: FC<Props> = ({ level, message }) => (
             <span class="flex-1">{message}</span>
             <button
                 type="button"
-                class="-mr-1 -mt-0.5 px-1 text-current opacity-60 hover:opacity-100"
+                class="-mt-0.5 -mr-1 px-1 text-current opacity-60 hover:opacity-100"
                 data-toast-dismiss
                 aria-label="Dismiss"
             >

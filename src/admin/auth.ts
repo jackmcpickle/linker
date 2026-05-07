@@ -1,6 +1,12 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import type { Env } from '../types';
-import { buildSetCookie, clearCookie, readCookie, signJSON, verifyJSON } from '../lib/cookie';
+import {
+    buildSetCookie,
+    clearCookie,
+    readCookie,
+    signJSON,
+    verifyJSON,
+} from '../lib/cookie';
 
 export const SESSION_COOKIE = 'admin_session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -8,7 +14,9 @@ const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 type SessionPayload = { iat: number; exp: number };
 
 export function isHttps(c: Context): boolean {
-    const proto = c.req.header('x-forwarded-proto') ?? new URL(c.req.url).protocol.replace(':', '');
+    const proto =
+        c.req.header('x-forwarded-proto') ??
+        new URL(c.req.url).protocol.replace(':', '');
     return proto === 'https';
 }
 
@@ -37,15 +45,21 @@ export async function setSessionCookie(c: Context<Env>): Promise<void> {
 }
 
 export function clearSessionCookie(c: Context<Env>): void {
-    c.header('Set-Cookie', clearCookie(SESSION_COOKIE, isHttps(c)), { append: true });
+    c.header('Set-Cookie', clearCookie(SESSION_COOKIE, isHttps(c)), {
+        append: true,
+    });
 }
 
 async function readSession(c: Context<Env>): Promise<SessionPayload | null> {
     const raw = readCookie(c.req.header('cookie'), SESSION_COOKIE);
     if (!raw) return null;
-    const payload = await verifyJSON<SessionPayload>(raw, c.env.COOKIE_HMAC_SECRET);
+    const payload = await verifyJSON<SessionPayload>(
+        raw,
+        c.env.COOKIE_HMAC_SECRET,
+    );
     if (!payload) return null;
-    if (typeof payload.exp !== 'number' || payload.exp <= Date.now()) return null;
+    if (typeof payload.exp !== 'number' || payload.exp <= Date.now())
+        return null;
     return payload;
 }
 

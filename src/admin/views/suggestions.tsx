@@ -11,23 +11,23 @@ export const Suggestions: FC<Props> = ({ folders, files, q }) => {
 
     const empty = folders.length === 0 && files.length === 0;
     if (empty) {
-        return <span class="italic text-zinc-400">no matches for {q}</span>;
+        return <span class="text-zinc-400 italic">no matches for {q}</span>;
     }
 
     return (
         <div class="space-y-1.5 rounded-md border border-zinc-200 bg-white p-2">
             {folders.length > 0 ? (
                 <div>
-                    <div class="px-2 py-0.5 text-[10px] uppercase tracking-wider text-zinc-400">
+                    <div class="px-2 py-0.5 text-[10px] tracking-wider text-zinc-400 uppercase">
                         Folders
                     </div>
                     <ul>
-                        {folders.map((f) => (
+                        {folders.map(f => (
                             <li>
                                 <button
                                     type="button"
                                     data-suggestion={f}
-                                    class="block w-full text-left rounded px-2 py-1 font-mono text-xs hover:bg-zinc-100"
+                                    class="block w-full rounded px-2 py-1 text-left font-mono text-xs hover:bg-zinc-100"
                                 >
                                     {f}
                                 </button>
@@ -38,16 +38,16 @@ export const Suggestions: FC<Props> = ({ folders, files, q }) => {
             ) : null}
             {files.length > 0 ? (
                 <div>
-                    <div class="px-2 py-0.5 text-[10px] uppercase tracking-wider text-zinc-400">
+                    <div class="px-2 py-0.5 text-[10px] tracking-wider text-zinc-400 uppercase">
                         Files
                     </div>
                     <ul>
-                        {files.map((f) => (
+                        {files.map(f => (
                             <li>
                                 <button
                                     type="button"
                                     data-suggestion={f}
-                                    class="block w-full text-left rounded px-2 py-1 font-mono text-xs hover:bg-zinc-100"
+                                    class="block w-full rounded px-2 py-1 text-left font-mono text-xs hover:bg-zinc-100"
                                 >
                                     {f}
                                 </button>

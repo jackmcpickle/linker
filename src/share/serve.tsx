@@ -94,7 +94,10 @@ export async function fetchFromR2(
     return new Response(obj.body, { status: 200, headers });
 }
 
-function withEdgeCacheControl(res: Response, edgeMaxAgeSeconds: number): Response {
+function withEdgeCacheControl(
+    res: Response,
+    edgeMaxAgeSeconds: number,
+): Response {
     const headers = new Headers(res.headers);
     headers.set('Cache-Control', `public, max-age=${edgeMaxAgeSeconds}`);
     const existingVary = headers.get('Vary');
@@ -136,15 +139,15 @@ async function buildListing(
         limit: 1000,
     });
 
-    const folders = (res.delimitedPrefixes ?? []).map((full) => {
+    const folders = (res.delimitedPrefixes ?? []).map(full => {
         const name = full.slice(scoped.length).replace(/\/+$/, '');
         const href = `${path}${name}/`.replace(/^\/+/, '/');
         return { name, href, kind: 'folder' as const };
     });
 
     const files = res.objects
-        .filter((o) => o.key !== scoped) // ignore zero-byte directory marker if any
-        .map((o) => {
+        .filter(o => o.key !== scoped) // ignore zero-byte directory marker if any
+        .map(o => {
             const name = o.key.slice(scoped.length);
             const href = `${path}${name}`.replace(/^\/+/, '/');
             return { name, href, kind: 'file' as const, size: o.size };
@@ -204,17 +207,27 @@ export async function serveShare(
             const entries = await buildListing(c.env.BUCKET, link.prefix, path);
             if (entries) {
                 const listingHtml = await c.html(
-                    <ListingPage path={path} parentHref={parentPath(path)} entries={entries} />,
+                    <ListingPage
+                        path={path}
+                        parentHref={parentPath(path)}
+                        entries={entries}
+                    />,
                 );
                 const ttl = HTML_EDGE_TTL;
                 const [edgeBody, browserBody] = listingHtml.body!.tee();
                 const cacheable = withEdgeCacheControl(
-                    new Response(edgeBody, { status: 200, headers: listingHtml.headers }),
+                    new Response(edgeBody, {
+                        status: 200,
+                        headers: listingHtml.headers,
+                    }),
                     ttl,
                 );
                 ctx.waitUntil(cache.put(cacheKey, cacheable));
                 const browserRes = withBrowserNoStore(
-                    new Response(browserBody, { status: 200, headers: listingHtml.headers }),
+                    new Response(browserBody, {
+                        status: 200,
+                        headers: listingHtml.headers,
+                    }),
                 );
                 countView(c.env, link, browserRes, path, ctx);
                 return browserRes;
@@ -230,7 +243,10 @@ export async function serveShare(
     const [edgeBody, browserBody] = r2res.body!.tee();
 
     const cacheableRes = withEdgeCacheControl(
-        new Response(edgeBody, { status: r2res.status, headers: r2res.headers }),
+        new Response(edgeBody, {
+            status: r2res.status,
+            headers: r2res.headers,
+        }),
         ttl,
     );
     if (r2res.status === 200 || r2res.status === 206) {
@@ -238,7 +254,10 @@ export async function serveShare(
     }
 
     const browserRes = withBrowserNoStore(
-        new Response(browserBody, { status: r2res.status, headers: r2res.headers }),
+        new Response(browserBody, {
+            status: r2res.status,
+            headers: r2res.headers,
+        }),
     );
     countView(c.env, link, browserRes, path, ctx);
     return browserRes;

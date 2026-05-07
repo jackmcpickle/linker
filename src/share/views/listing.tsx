@@ -17,7 +17,8 @@ function fmtSize(bytes?: number): string {
     if (bytes === undefined) return '';
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    if (bytes < 1024 * 1024 * 1024)
+        return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
     return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
@@ -25,8 +26,14 @@ export const ListingPage: FC<Props> = ({ path, parentHref, entries }) => (
     <html lang="en">
         <head>
             <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <meta name="robots" content="noindex,nofollow" />
+            <meta
+                name="viewport"
+                content="width=device-width, initial-scale=1"
+            />
+            <meta
+                name="robots"
+                content="noindex,nofollow"
+            />
             <title>Index of {path}</title>
             <style>{`
         :root { color-scheme: light dark; }
@@ -87,10 +94,12 @@ export const ListingPage: FC<Props> = ({ path, parentHref, entries }) => (
                     {entries.length === 0 && !parentHref ? (
                         <li class="empty">empty folder</li>
                     ) : null}
-                    {entries.map((e) => (
+                    {entries.map(e => (
                         <li>
                             <a href={e.href}>
-                                <span class="kind">{e.kind === 'folder' ? '▸' : '·'}</span>
+                                <span class="kind">
+                                    {e.kind === 'folder' ? '▸' : '·'}
+                                </span>
                                 <span class="name">
                                     {e.name}
                                     {e.kind === 'folder' ? '/' : ''}

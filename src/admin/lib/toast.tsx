@@ -4,9 +4,19 @@ import { Toast, type ToastLevel } from '../views/components/toast';
 
 // Render an error toast as an HTMX response. HX-Reswap: none keeps the
 // triggering element's target untouched; the OOB swap injects the toast.
-export function toastError(c: Context, message: string, status: ContentfulStatusCode = 400) {
+export function toastError(
+    c: Context,
+    message: string,
+    status: ContentfulStatusCode = 400,
+) {
     c.header('HX-Reswap', 'none');
-    return c.html(<Toast level="error" message={message} />, status);
+    return c.html(
+        <Toast
+            level="error"
+            message={message}
+        />,
+        status,
+    );
 }
 
 // Wrap a successful response body with an OOB toast appended.
@@ -14,7 +24,10 @@ export function withToast(body: unknown, level: ToastLevel, message: string) {
     return (
         <>
             {body}
-            <Toast level={level} message={message} />
+            <Toast
+                level={level}
+                message={message}
+            />
         </>
     );
 }
@@ -22,7 +35,12 @@ export function withToast(body: unknown, level: ToastLevel, message: string) {
 // Build a raw Response carrying an OOB error toast — used outside Hono's
 // Context (e.g. from the top-level fetch handler's catch block).
 export function htmxToastResponse(message: string, status = 500): Response {
-    const body = (<Toast level="error" message={message} />) as unknown as string;
+    const body = (
+        <Toast
+            level="error"
+            message={message}
+        />
+    ) as unknown as string;
     return new Response(body, {
         status,
         headers: {

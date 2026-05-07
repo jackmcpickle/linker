@@ -12,7 +12,9 @@ function b64urlEncode(s: string): string {
 }
 
 function b64urlDecode(s: string): string | null {
-    const padded = s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4);
+    const padded =
+        s.replace(/-/g, '+').replace(/_/g, '/') +
+        '==='.slice((s.length + 3) % 4);
     try {
         const bin = atob(padded);
         const bytes = new Uint8Array(bin.length);
@@ -38,7 +40,8 @@ async function hmac(secret: string, data: string): Promise<string> {
 function constantTimeEq(a: string, b: string): boolean {
     if (a.length !== b.length) return false;
     let mismatch = 0;
-    for (let i = 0; i < a.length; i++) mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    for (let i = 0; i < a.length; i++)
+        mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
     return mismatch === 0;
 }
 
@@ -50,7 +53,10 @@ export async function sign(payload: string, secret: string): Promise<string> {
 }
 
 /** Verify and decode a signed value. Returns the original payload or null. */
-export async function verify(signed: string, secret: string): Promise<string | null> {
+export async function verify(
+    signed: string,
+    secret: string,
+): Promise<string | null> {
     const dot = signed.indexOf('.');
     if (dot <= 0) return null;
     const p = signed.slice(0, dot);
@@ -65,7 +71,10 @@ export async function signJSON<T>(value: T, secret: string): Promise<string> {
     return sign(JSON.stringify(value), secret);
 }
 
-export async function verifyJSON<T>(signed: string, secret: string): Promise<T | null> {
+export async function verifyJSON<T>(
+    signed: string,
+    secret: string,
+): Promise<T | null> {
     const raw = await verify(signed, secret);
     if (raw === null) return null;
     try {
@@ -106,7 +115,10 @@ export function clearCookie(name: string, secure: boolean): string {
     });
 }
 
-export function readCookie(header: string | undefined, name: string): string | null {
+export function readCookie(
+    header: string | undefined,
+    name: string,
+): string | null {
     if (!header) return null;
     for (const part of header.split(/;\s*/)) {
         const eq = part.indexOf('=');

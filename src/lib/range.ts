@@ -23,7 +23,8 @@ export function parseRange(
     if (startStr && endStr) {
         const a = Number(startStr);
         const b = Number(endStr);
-        if (!Number.isFinite(a) || !Number.isFinite(b) || a < 0 || b < a) return null;
+        if (!Number.isFinite(a) || !Number.isFinite(b) || a < 0 || b < a)
+            return null;
         return { offset: a, length: b - a + 1 };
     }
     return null;

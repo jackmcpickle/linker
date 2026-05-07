@@ -9,8 +9,14 @@ export const InterstitialPage: FC<Props> = ({ turnstileSiteKey, next }) => (
     <html lang="en">
         <head>
             <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <meta name="robots" content="noindex,nofollow" />
+            <meta
+                name="viewport"
+                content="width=device-width, initial-scale=1"
+            />
+            <meta
+                name="robots"
+                content="noindex,nofollow"
+            />
             <title>Verifying…</title>
             <style>{`
         :root { color-scheme: light dark; }
@@ -40,10 +46,17 @@ export const InterstitialPage: FC<Props> = ({ turnstileSiteKey, next }) => (
                 action="/__verify"
                 data-turnstile-site-key={turnstileSiteKey}
             >
-                <input type="hidden" name="next" value={next} />
+                <input
+                    type="hidden"
+                    name="next"
+                    value={next}
+                />
                 <div id="ts-container"></div>
             </form>
-            <script src="/__challenge.js" defer></script>
+            <script
+                src="/__challenge.js"
+                defer
+            ></script>
         </body>
     </html>
 );

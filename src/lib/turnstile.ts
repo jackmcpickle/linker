@@ -19,13 +19,19 @@ export async function verifyTurnstile(
     body.set('response', token);
     if (remoteIp) body.set('remoteip', remoteIp);
 
-    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-        method: 'POST',
-        body,
-    });
+    const res = await fetch(
+        'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+        {
+            method: 'POST',
+            body,
+        },
+    );
 
-    if (!res.ok) return { ok: false, errors: [`siteverify-http-${res.status}`] };
+    if (!res.ok)
+        return { ok: false, errors: [`siteverify-http-${res.status}`] };
 
     const data = (await res.json()) as TurnstileResponse;
-    return data.success ? { ok: true } : { ok: false, errors: data['error-codes'] ?? ['unknown'] };
+    return data.success
+        ? { ok: true }
+        : { ok: false, errors: data['error-codes'] ?? ['unknown'] };
 }
