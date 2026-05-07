@@ -1,5 +1,6 @@
 import type { FC } from 'hono/jsx';
 import { DEFAULT_PRESET, EXPIRY_PRESETS } from '../../lib/expiry';
+import { Spinner } from './components/spinner';
 
 export const CreateLinkForm: FC = () => (
     <form
@@ -74,8 +75,9 @@ export const CreateLinkForm: FC = () => (
         <div>
             <button
                 type="submit"
-                class="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+                class="inline-flex items-center gap-2 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
             >
+                <Spinner />
                 Create share link
             </button>
         </div>

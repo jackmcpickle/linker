@@ -2,6 +2,7 @@ import type { FC } from 'hono/jsx';
 import type { ShareLink } from '../../types';
 import { EXPIRY_PRESETS } from '../../lib/expiry';
 import { isoAt, relative } from '../../lib/time';
+import { Spinner } from './components/spinner';
 
 type Props = {
     link: ShareLink;
@@ -94,12 +95,13 @@ export const LinkRow: FC<Props> = ({ link, shareDomain, mode = 'view' }) => {
                                 {EXPIRY_PRESETS.map((p) => (
                                     <button
                                         type="button"
-                                        class="text-xs rounded border border-zinc-200 px-2 py-1 hover:bg-zinc-100"
+                                        class="inline-flex items-center gap-1 text-xs rounded border border-zinc-200 px-2 py-1 hover:bg-zinc-100"
                                         hx-post={`/_admin/links/${link.token}/extend`}
                                         hx-vals={JSON.stringify({ preset: p.id })}
                                         hx-target={`#link-${link.token}`}
                                         hx-swap="outerHTML"
                                     >
+                                        <Spinner class="h-3 w-3" />
                                         {p.id}
                                     </button>
                                 ))}
@@ -108,33 +110,36 @@ export const LinkRow: FC<Props> = ({ link, shareDomain, mode = 'view' }) => {
                     ) : null}
                     <button
                         type="button"
-                        class="text-xs rounded border border-zinc-200 px-2 py-1 hover:bg-zinc-50"
+                        class="inline-flex items-center gap-1 text-xs rounded border border-zinc-200 px-2 py-1 hover:bg-zinc-50"
                         hx-get={`/_admin/links/${link.token}/edit`}
                         hx-target={`#link-${link.token}`}
                         hx-swap="outerHTML"
                     >
+                        <Spinner class="h-3 w-3" />
                         edit
                     </button>
                     {s !== 'revoked' ? (
                         <button
                             type="button"
-                            class="text-xs rounded border border-red-200 px-2 py-1 text-red-700 hover:bg-red-50"
+                            class="inline-flex items-center gap-1 text-xs rounded border border-red-200 px-2 py-1 text-red-700 hover:bg-red-50"
                             hx-post={`/_admin/links/${link.token}/revoke`}
                             hx-target={`#link-${link.token}`}
                             hx-swap="outerHTML"
                             hx-confirm="Revoke this link? Recipients will see the expired page immediately."
                         >
+                            <Spinner class="h-3 w-3" />
                             revoke
                         </button>
                     ) : null}
                     <button
                         type="button"
-                        class="text-xs rounded border border-zinc-200 px-2 py-1 text-zinc-500 hover:text-red-700"
+                        class="inline-flex items-center gap-1 text-xs rounded border border-zinc-200 px-2 py-1 text-zinc-500 hover:text-red-700"
                         hx-delete={`/_admin/links/${link.token}`}
                         hx-target={`#link-${link.token}`}
                         hx-swap="outerHTML"
                         hx-confirm="Permanently delete this share record?"
                     >
+                        <Spinner class="h-3 w-3" />
                         delete
                     </button>
                 </div>
@@ -185,17 +190,19 @@ const LinkRowEdit: FC<{ link: ShareLink }> = ({ link }) => (
                 <div class="md:col-span-2 flex gap-2">
                     <button
                         type="submit"
-                        class="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800"
+                        class="inline-flex items-center gap-2 rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800"
                     >
+                        <Spinner />
                         Save
                     </button>
                     <button
                         type="button"
-                        class="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100"
+                        class="inline-flex items-center gap-2 rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100"
                         hx-get={`/_admin/links/${link.token}`}
                         hx-target={`#link-${link.token}`}
                         hx-swap="outerHTML"
                     >
+                        <Spinner />
                         Cancel
                     </button>
                 </div>

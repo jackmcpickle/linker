@@ -1,5 +1,6 @@
 import type { FC } from 'hono/jsx';
 import { Layout } from './layout';
+import { Spinner } from './components/spinner';
 
 type Props = {
     turnstileSiteKey: string;
@@ -48,8 +49,9 @@ export const LoginPage: FC<Props> = ({ turnstileSiteKey, error, lockedUntil }) =
 
                 <button
                     type="submit"
-                    class="w-full rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+                    class="inline-flex w-full items-center justify-center gap-2 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
                 >
+                    <Spinner />
                     Sign in
                 </button>
             </form>

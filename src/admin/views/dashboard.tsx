@@ -3,6 +3,7 @@ import { Layout } from './layout';
 import type { ShareLink } from '../../types';
 import { LinkRow } from './link-row';
 import { CreateLinkForm } from './link-form';
+import { Spinner } from './components/spinner';
 
 type Props = {
     links: ShareLink[];
@@ -15,7 +16,10 @@ export const DashboardPage: FC<Props> = ({ links, shareDomain }) => (
             <header class="mb-6 flex items-center justify-between">
                 <h1 class="text-xl font-semibold tracking-tight">Share links</h1>
                 <form method="post" action="/_admin/logout">
-                    <button class="text-sm text-zinc-500 hover:text-zinc-900">Sign out</button>
+                    <button class="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900">
+                        <Spinner />
+                        Sign out
+                    </button>
                 </form>
             </header>
 

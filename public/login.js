@@ -26,6 +26,7 @@
             },
             'error-callback': function () {
                 pending = false;
+                form.classList.remove('htmx-request');
             },
         });
     }
@@ -35,6 +36,7 @@
         if (pending || !widgetId) return;
         e.preventDefault();
         pending = true;
+        form.classList.add('htmx-request');
         window.turnstile.execute(widgetId);
     });
 })();

@@ -80,4 +80,19 @@
     document.body.addEventListener('htmx:afterSwap', function (e) {
         refresh(e.target);
     });
+
+    // Show spinner on native (non-htmx) form submits — htmx forms get the
+    // class automatically.
+    document.body.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (!(form instanceof HTMLFormElement)) return;
+        if (
+            form.hasAttribute('hx-post') ||
+            form.hasAttribute('hx-patch') ||
+            form.hasAttribute('hx-put') ||
+            form.hasAttribute('hx-delete')
+        )
+            return;
+        form.classList.add('htmx-request');
+    });
 })();

@@ -16,3 +16,17 @@
     opacity: 1;
     transition: opacity 120ms ease-out;
 }
+
+/* HTMX request indicator */
+.htmx-spinner {
+    display: none;
+}
+.htmx-request .htmx-spinner,
+.htmx-request.htmx-spinner {
+    display: inline-block;
+}
+form.htmx-request button[type='submit'],
+button.htmx-request {
+    pointer-events: none;
+    opacity: 0.7;
+}
