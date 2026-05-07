@@ -20,6 +20,7 @@ Single Worker, two routes:
 - `*.share.<root>/*` — share serving via wildcard subdomain
 
 Worker dispatches by `Host` header:
+
 - Host == `SHARE_DOMAIN` (apex) → admin handlers
 - Host == `<token>.<SHARE_DOMAIN>` → share serving, token = first label
 
@@ -134,12 +135,12 @@ Components:
 
 ```ts
 const PRESETS = [
-  { label: '1h',  ms: 3600_000 },
-  { label: '6h',  ms: 21600_000 },
-  { label: '1d',  ms: 86400_000 },
-  { label: '3d',  ms: 259200_000 },
-  { label: '1w',  ms: 604800_000 },  // default
-  { label: '1mo', ms: 2592000_000 },
+    { label: '1h', ms: 3600_000 },
+    { label: '6h', ms: 21600_000 },
+    { label: '1d', ms: 86400_000 },
+    { label: '3d', ms: 259200_000 },
+    { label: '1w', ms: 604800_000 }, // default
+    { label: '1mo', ms: 2592000_000 },
 ];
 ```
 
@@ -149,9 +150,27 @@ Floor 1h, ceiling 1y (server-side validation).
 
 ```html
 <!doctype html>
-<html><head><meta charset="utf-8"><title>Link expired</title>
-<style>body{font-family:system-ui;display:grid;place-items:center;height:100dvh;margin:0}h1{font-weight:400}</style>
-</head><body><h1>This link has expired</h1></body></html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Link expired</title>
+        <style>
+            body {
+                font-family: system-ui;
+                display: grid;
+                place-items: center;
+                height: 100dvh;
+                margin: 0;
+            }
+            h1 {
+                font-weight: 400;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>This link has expired</h1>
+    </body>
+</html>
 ```
 
 Same body for expired, revoked, never-existed. Status: `410` expired/revoked, `404` missing.
@@ -160,31 +179,30 @@ Same body for expired, revoked, never-existed. Status: `410` expired/revoked, `4
 
 ```jsonc
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "habits-linker",
-  "main": "src/index.ts",
-  "compatibility_date": "2025-01-01",
-  "compatibility_flags": ["nodejs_compat"],
-  "observability": { "enabled": true, "head_sampling_rate": 1 },
-  "routes": [
-    { "pattern": "share.<root>/*", "custom_domain": true },
-    { "pattern": "*.share.<root>/*", "zone_name": "<root>" }
-  ],
-  "r2_buckets": [
-    { "binding": "BUCKET", "bucket_name": "habits-linker-content" }
-  ],
-  "kv_namespaces": [
-    { "binding": "LINKS", "id": "..." },
-    { "binding": "THROTTLE", "id": "..." }
-  ],
-  "vars": {
-    "SHARE_DOMAIN": "share.<root>",
-    "TURNSTILE_SITE_KEY": "..."
-  }
+    "$schema": "node_modules/wrangler/config-schema.json",
+    "name": "habits-linker",
+    "main": "src/index.ts",
+    "compatibility_date": "2025-01-01",
+    "compatibility_flags": ["nodejs_compat"],
+    "observability": { "enabled": true, "head_sampling_rate": 1 },
+    "routes": [
+        { "pattern": "share.<root>/*", "custom_domain": true },
+        { "pattern": "*.share.<root>/*", "zone_name": "<root>" },
+    ],
+    "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "habits-linker-content" }],
+    "kv_namespaces": [
+        { "binding": "LINKS", "id": "..." },
+        { "binding": "THROTTLE", "id": "..." },
+    ],
+    "vars": {
+        "SHARE_DOMAIN": "share.<root>",
+        "TURNSTILE_SITE_KEY": "...",
+    },
 }
 ```
 
 Secrets via `wrangler secret put`:
+
 - `ADMIN_PASSWORD`
 - `COOKIE_HMAC_SECRET` (random 32+ bytes; rotation invalidates all sessions)
 - `TURNSTILE_SECRET_KEY`

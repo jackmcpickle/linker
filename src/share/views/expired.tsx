@@ -1,13 +1,13 @@
-import type { FC } from "hono/jsx";
+import type { FC } from 'hono/jsx';
 
 export const ExpiredPage: FC = () => (
-  <html lang="en">
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <meta name="robots" content="noindex,nofollow" />
-      <title>Link expired</title>
-      <style>{`
+    <html lang="en">
+        <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <meta name="robots" content="noindex,nofollow" />
+            <title>Link expired</title>
+            <style>{`
         :root { color-scheme: light dark; }
         body {
           font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -23,9 +23,9 @@ export const ExpiredPage: FC = () => (
           body { background: #09090b; color: #e4e4e7; }
         }
       `}</style>
-    </head>
-    <body>
-      <h1>This link has expired</h1>
-    </body>
-  </html>
+        </head>
+        <body>
+            <h1>This link has expired</h1>
+        </body>
+    </html>
 );

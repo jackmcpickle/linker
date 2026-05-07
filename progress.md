@@ -2,19 +2,19 @@
 
 Tracks implementation against [`docs/PLAN.md`](docs/PLAN.md).
 
-| Stage | Title | Status |
-|------:|-------|:------:|
-| 1 | Scaffold | ✅ |
-| 2 | SETUP docs (CF resources) | ✅ |
-| 3 | Worker dispatch (host-based routing) | ✅ |
-| 4 | Admin auth | ✅ |
-| 5 | Admin CRUD | ✅ |
-| 6 | Typeahead prefix picker | ✅ |
-| 7 | Share token gate + expiry page | ✅ |
-| 8 | Share Turnstile interstitial | ✅ |
-| 9 | Share R2 fetch + cache | ✅ |
-| 10 | Directory listing fallback | ✅ |
-| 11 | Polish | ✅ |
+| Stage | Title                                | Status |
+| ----: | ------------------------------------ | :----: |
+|     1 | Scaffold                             |   ✅   |
+|     2 | SETUP docs (CF resources)            |   ✅   |
+|     3 | Worker dispatch (host-based routing) |   ✅   |
+|     4 | Admin auth                           |   ✅   |
+|     5 | Admin CRUD                           |   ✅   |
+|     6 | Typeahead prefix picker              |   ✅   |
+|     7 | Share token gate + expiry page       |   ✅   |
+|     8 | Share Turnstile interstitial         |   ✅   |
+|     9 | Share R2 fetch + cache               |   ✅   |
+|    10 | Directory listing fallback           |   ✅   |
+|    11 | Polish                               |   ✅   |
 
 Legend: ☐ pending · ⏳ in progress · ✅ done
 
@@ -89,9 +89,9 @@ Extending un-revokes (sets new expiry, clears `revokedAt`).
 - `src/share/views/interstitial.tsx` — full-page invisible Turnstile, hidden form with `next` path, posts to `/__verify`
 - `public/__challenge.js` — explicit Turnstile render, auto-execute, error-callback retry
 - `src/share/routes.tsx` flow:
-  - `/__challenge.js` → ASSETS passthrough (only share asset exposed)
-  - host classifier → token gate → `/__verify` POST (verifies Turnstile, sets cookie, 303 to `next`)
-  - cookie gate → no cookie → render interstitial; cookie present → next handler
+    - `/__challenge.js` → ASSETS passthrough (only share asset exposed)
+    - host classifier → token gate → `/__verify` POST (verifies Turnstile, sets cookie, 303 to `next`)
+    - cookie gate → no cookie → render interstitial; cookie present → next handler
 - `safeNext()` rejects protocol-relative + CRLF injection in `next` param
 
 ## Stage 9 — Share R2 fetch + cache ✅
@@ -99,12 +99,12 @@ Extending un-revokes (sets new expiry, clears `revokedAt`).
 - `src/lib/mime.ts` — extension → MIME map (~30 common types), `isHtmlMime`
 - `src/lib/range.ts` — single-range parser → R2 range shape (`offset/length` or `suffix`)
 - `src/share/serve.ts`
-  - `resolveKey(prefix, path)` strict: `/` → `<prefix>/index.html`, `/foo/` → `<prefix>/foo/index.html`, else 1:1
-  - `fetchFromR2` honors `Range` header, sets `Accept-Ranges`, `ETag`, `Last-Modified`, returns 206 + `Content-Range` for partial
-  - Edge cache via `caches.default` keyed on full URL + Range; HTML 60s, assets 1h; `Vary: Range`
-  - Browser-facing response forced to `Cache-Control: no-store`
-  - `r2.body.tee()` splits one R2 stream into edge-write + browser-stream concurrently
-  - `viewCount`/`lastAccessedAt` bumped via `ctx.waitUntil` only on `200` HTML responses
+    - `resolveKey(prefix, path)` strict: `/` → `<prefix>/index.html`, `/foo/` → `<prefix>/foo/index.html`, else 1:1
+    - `fetchFromR2` honors `Range` header, sets `Accept-Ranges`, `ETag`, `Last-Modified`, returns 206 + `Content-Range` for partial
+    - Edge cache via `caches.default` keyed on full URL + Range; HTML 60s, assets 1h; `Vary: Range`
+    - Browser-facing response forced to `Cache-Control: no-store`
+    - `r2.body.tee()` splits one R2 stream into edge-write + browser-stream concurrently
+    - `viewCount`/`lastAccessedAt` bumped via `ctx.waitUntil` only on `200` HTML responses
 - Routes: `share.on(['GET','HEAD'], '*', serveShare)`; non-GET/HEAD → 405
 - 404 from R2 currently returns plain text — replaced by directory listing fallback in stage 10
 
@@ -112,22 +112,22 @@ Extending un-revokes (sets new expiry, clears `revokedAt`).
 
 - `src/share/views/listing.tsx` — bare HTML directory index, ../parent link, alphabetically-sorted folders then files, sizes formatted, prefers-color-scheme aware
 - `src/share/serve.tsx` (renamed from .ts):
-  - `listingPrefix(sharePrefix, path)` builds the R2 list prefix for a directory request
-  - `buildListing(bucket, sharePrefix, path)` returns null when prefix has no children, else `[folders, files]` with share-relative `href` and sizes
-  - `parentPath(path)` for `../` navigation (undefined at root)
-  - On R2 miss + directory-shaped path → render listing, cached at HTML edge TTL (60s) like any other HTML response, view counter still bumped
-  - Strict file paths (no trailing slash) still 404 as before — no auto-promotion
+    - `listingPrefix(sharePrefix, path)` builds the R2 list prefix for a directory request
+    - `buildListing(bucket, sharePrefix, path)` returns null when prefix has no children, else `[folders, files]` with share-relative `href` and sizes
+    - `parentPath(path)` for `../` navigation (undefined at root)
+    - On R2 miss + directory-shaped path → render listing, cached at HTML edge TTL (60s) like any other HTML response, view counter still bumped
+    - Strict file paths (no trailing slash) still 404 as before — no auto-promotion
 - One R2 stream split via `tee()` for both edge cache write + browser response
 
 ## Stage 11 — Polish ✅
 
 - `src/lib/log.ts` — `log({event, ...})` JSON line logger; visible in CF Workers Logs
 - Logged events:
-  - `admin.login.ok` / `password_fail` / `turnstile_fail`
-  - `admin.link.{create,extend,revoke,delete}` with token + relevant fields
-  - `share.gate.reject` { token, kind: missing|revoked|expired }
-  - `share.verify.{ok,fail}` with errors
-  - `fetch.error` (top-level catch) with message + stack
+    - `admin.login.ok` / `password_fail` / `turnstile_fail`
+    - `admin.link.{create,extend,revoke,delete}` with token + relevant fields
+    - `share.gate.reject` { token, kind: missing|revoked|expired }
+    - `share.verify.{ok,fail}` with errors
+    - `fetch.error` (top-level catch) with message + stack
 - `src/index.ts` — top-level try/catch returns generic 500 (`no-store`), logs full error
 - Empty-state admin UI already shipped in stage 5
 - Browser-local TZ rendering via `admin.js` already shipped in stage 5

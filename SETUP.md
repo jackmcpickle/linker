@@ -79,6 +79,7 @@ For the apex (`linker.habitsofmind.com.au`): Workers `custom_domain: true` provi
 For the wildcard (`*.linker.habitsofmind.com.au`): add a proxied DNS record manually before deploy.
 
 Dashboard → DNS → Add record:
+
 - Type: `AAAA`
 - Name: `*.linker`
 - IPv6: `100::`
@@ -121,11 +122,11 @@ Out of scope for the app, but for completeness:
 2. Permission: Object Read & Write, scope to `habits-linker-content`.
 3. Copy access key + secret + S3 endpoint (`https://<account-id>.r2.cloudflarestorage.com`).
 4. Transmit → New connection → Server type: **S3-compatible**.
-   - Server: `<account-id>.r2.cloudflarestorage.com`
-   - Port: 443
-   - Protocol: HTTPS
-   - Access Key ID / Secret: from step 3
-   - Region: `auto`
+    - Server: `<account-id>.r2.cloudflarestorage.com`
+    - Port: 443
+    - Protocol: HTTPS
+    - Access Key ID / Secret: from step 3
+    - Region: `auto`
 5. Create folders for each site you want to share, upload files. Then come back to the admin UI and create a share link pointing to that prefix.
 
 ## Verifying setup

@@ -1,34 +1,34 @@
-import type { FC } from "hono/jsx";
+import type { FC } from 'hono/jsx';
 
 export type ListingEntry = {
-  name: string;
-  href: string;
-  kind: "folder" | "file";
-  size?: number;
+    name: string;
+    href: string;
+    kind: 'folder' | 'file';
+    size?: number;
 };
 
 type Props = {
-  path: string;
-  parentHref?: string;
-  entries: ListingEntry[];
+    path: string;
+    parentHref?: string;
+    entries: ListingEntry[];
 };
 
 function fmtSize(bytes?: number): string {
-  if (bytes === undefined) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+    if (bytes === undefined) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
 export const ListingPage: FC<Props> = ({ path, parentHref, entries }) => (
-  <html lang="en">
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <meta name="robots" content="noindex,nofollow" />
-      <title>Index of {path}</title>
-      <style>{`
+    <html lang="en">
+        <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <meta name="robots" content="noindex,nofollow" />
+            <title>Index of {path}</title>
+            <style>{`
         :root { color-scheme: light dark; }
         body {
           font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -71,36 +71,36 @@ export const ListingPage: FC<Props> = ({ path, parentHref, entries }) => (
           .kind { color: #71717a; }
         }
       `}</style>
-    </head>
-    <body>
-      <main>
-        <h1>Index of {path}</h1>
-        <ul>
-          {parentHref ? (
-            <li>
-              <a href={parentHref}>
-                <span class="kind">↑</span>
-                <span class="name">../</span>
-              </a>
-            </li>
-          ) : null}
-          {entries.length === 0 && !parentHref ? (
-            <li class="empty">empty folder</li>
-          ) : null}
-          {entries.map((e) => (
-            <li>
-              <a href={e.href}>
-                <span class="kind">{e.kind === "folder" ? "▸" : "·"}</span>
-                <span class="name">
-                  {e.name}
-                  {e.kind === "folder" ? "/" : ""}
-                </span>
-                <span class="size">{fmtSize(e.size)}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </main>
-    </body>
-  </html>
+        </head>
+        <body>
+            <main>
+                <h1>Index of {path}</h1>
+                <ul>
+                    {parentHref ? (
+                        <li>
+                            <a href={parentHref}>
+                                <span class="kind">↑</span>
+                                <span class="name">../</span>
+                            </a>
+                        </li>
+                    ) : null}
+                    {entries.length === 0 && !parentHref ? (
+                        <li class="empty">empty folder</li>
+                    ) : null}
+                    {entries.map((e) => (
+                        <li>
+                            <a href={e.href}>
+                                <span class="kind">{e.kind === 'folder' ? '▸' : '·'}</span>
+                                <span class="name">
+                                    {e.name}
+                                    {e.kind === 'folder' ? '/' : ''}
+                                </span>
+                                <span class="size">{fmtSize(e.size)}</span>
+                            </a>
+                        </li>
+                    ))}
+                </ul>
+            </main>
+        </body>
+    </html>
 );

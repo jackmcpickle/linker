@@ -5,6 +5,6 @@ type LogEvent = Record<string, unknown> & { event: string };
  * Use for events worth searching ("event"). Avoid PII (no IPs in payload).
  */
 export function log(event: LogEvent): void {
-  // eslint-disable-next-line no-console
-  console.log(JSON.stringify({ ts: Date.now(), ...event }));
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify({ ts: Date.now(), ...event }));
 }
