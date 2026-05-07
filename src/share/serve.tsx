@@ -168,7 +168,6 @@ export async function serveShare(
 ): Promise<Response> {
     const url = new URL(c.req.url);
     const path = url.pathname;
-    const key = resolveKey(link.prefix, path);
     const rangeHeader = c.req.header('Range') ?? null;
 
     const cache = caches.default;
@@ -183,7 +182,21 @@ export async function serveShare(
         return withBrowserNoStore(cached);
     }
 
-    const r2res = await fetchFromR2(c.env.BUCKET, key, rangeHeader);
+    // For root requests, probe the literal prefix first so single-file shares
+    // (e.g. prefix = "clients/acme/q1.pdf") serve the file directly. Folder
+    // shares fall through to the index.html / listing path below.
+    const candidates: string[] = [];
+    if (path === '/') {
+        const bare = link.prefix.replace(/\/+$/, '');
+        if (bare) candidates.push(bare);
+    }
+    candidates.push(resolveKey(link.prefix, path));
+
+    let r2res: Response | null = null;
+    for (const k of candidates) {
+        r2res = await fetchFromR2(c.env.BUCKET, k, rangeHeader);
+        if (r2res) break;
+    }
 
     if (!r2res) {
         // Directory listing fallback.
