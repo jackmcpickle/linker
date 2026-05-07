@@ -1,27 +1,33 @@
 {
-  "name": "habits-linker",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "concurrently -n cf,css -c blue,magenta \"wrangler dev --remote\" \"pnpm tailwind:watch\"",
-    "dev:worker": "wrangler dev --remote",
-    "tailwind": "tailwindcss -i ./input.css -o ./public/style.css --minify",
-    "tailwind:watch": "tailwindcss -i ./input.css -o ./public/style.css --watch",
-    "typecheck": "tsc --noEmit",
-    "deploy": "pnpm tailwind && wrangler deploy",
-    "cf-typegen": "wrangler types"
-  },
-  "dependencies": {
-    "hono": "^4.6.14",
-    "nanoid": "^5.0.9"
-  },
-  "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241224.0",
-    "@tailwindcss/cli": "^4.0.0",
-    "concurrently": "^9.1.0",
-    "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.2",
-    "wrangler": "^3.99.0"
-  }
+    "name": "habits-linker",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "concurrently -n cf,css -c blue,magenta \"wrangler dev --remote\" \"pnpm tailwind:watch\"",
+        "dev:worker": "wrangler dev --remote",
+        "tailwind": "tailwindcss -i ./input.css -o ./public/style.css --minify",
+        "tailwind:watch": "tailwindcss -i ./input.css -o ./public/style.css --watch",
+        "build": "pnpm tailwind",
+        "lint": "oxlint --type-aware --type-check src",
+        "fmt": "oxfmt",
+        "fmt:check": "oxfmt --check",
+        "deploy": "pnpm build && wrangler deploy",
+        "cf-typegen": "wrangler types"
+    },
+    "dependencies": {
+        "hono": "^4.12.18",
+        "nanoid": "^5.1.11"
+    },
+    "devDependencies": {
+        "@cloudflare/workers-types": "^4.20260507.1",
+        "@tailwindcss/cli": "^4.2.4",
+        "concurrently": "^9.2.1",
+        "oxfmt": "^0.48.0",
+        "oxlint": "^1.63.0",
+        "oxlint-tsgolint": "^0.22.1",
+        "tailwindcss": "^4.2.4",
+        "typescript": "^6.0.3",
+        "wrangler": "^4.88.0"
+    }
 }

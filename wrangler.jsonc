@@ -1,60 +1,58 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "linker",
-  "main": "src/index.ts",
-  "compatibility_date": "2025-01-01",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
-  "observability": {
-    "enabled": true,
-    "head_sampling_rate": 1
-  },
-  // Two routes: apex (admin) + wildcard (shares).
-  // Apex uses custom_domain so Workers manages the DNS record + cert.
-  // Wildcard uses route pattern + zone_name (parent zone).
-  // NOTE: free Universal SSL does NOT cover *.linker.habitsofmind.com.au
-  // (depth-2 wildcard). See SETUP.md for cert options.
-  "routes": [
-    {
-      "pattern": "linker.habitsofmind.com.au",
-      "custom_domain": true
+    "$schema": "node_modules/wrangler/config-schema.json",
+    "name": "linker",
+    "main": "src/index.ts",
+    "compatibility_date": "2025-01-01",
+    "compatibility_flags": ["nodejs_compat"],
+    "observability": {
+        "enabled": true,
+        "head_sampling_rate": 1,
     },
-    {
-      "pattern": "*.linker.habitsofmind.com.au/*",
-      "zone_name": "habitsofmind.com.au"
-    }
-  ],
-  // Static assets served from /public — Tailwind output, HTMX optional self-host.
-  // Worker intercepts first; we explicitly call env.ASSETS.fetch when needed.
-  "assets": {
-    "directory": "./public",
-    "binding": "ASSETS"
-  },
-  "r2_buckets": [
-    {
-      "binding": "BUCKET",
-      "bucket_name": "habits-linker-content"
-    }
-  ],
-  "kv_namespaces": [
-    {
-      "binding": "LINKS",
-      "id": "16e3c69ab89c47d2ac4a5cc9daa8fa71",
-      "remote": true
+    // Two routes: apex (admin) + wildcard (shares).
+    // Apex uses custom_domain so Workers manages the DNS record + cert.
+    // Wildcard uses route pattern + zone_name (parent zone).
+    // NOTE: free Universal SSL does NOT cover *.linker.habitsofmind.com.au
+    // (depth-2 wildcard). See SETUP.md for cert options.
+    "routes": [
+        {
+            "pattern": "linker.habitsofmind.com.au",
+            "custom_domain": true,
+        },
+        {
+            "pattern": "*.linker.habitsofmind.com.au/*",
+            "zone_name": "habitsofmind.com.au",
+        },
+    ],
+    // Static assets served from /public — Tailwind output, HTMX optional self-host.
+    // Worker intercepts first; we explicitly call env.ASSETS.fetch when needed.
+    "assets": {
+        "directory": "./public",
+        "binding": "ASSETS",
     },
-    {
-      "binding": "THROTTLE",
-      "id": "1de7e8129c654d1caa673527a180ef70",
-      "remote": true
-    }
-  ],
-  "vars": {
-    "SHARE_DOMAIN": "linker.habitsofmind.com.au",
-    "TURNSTILE_SITE_KEY": "0x4AAAAAADKIGS8sR36T2rtx"
-  }
-  // Secrets (set via `wrangler secret put`):
-  //   ADMIN_PASSWORD
-  //   COOKIE_HMAC_SECRET
-  //   TURNSTILE_SECRET_KEY
+    "r2_buckets": [
+        {
+            "binding": "BUCKET",
+            "bucket_name": "habits-linker-content",
+        },
+    ],
+    "kv_namespaces": [
+        {
+            "binding": "LINKS",
+            "id": "16e3c69ab89c47d2ac4a5cc9daa8fa71",
+            "remote": true,
+        },
+        {
+            "binding": "THROTTLE",
+            "id": "1de7e8129c654d1caa673527a180ef70",
+            "remote": true,
+        },
+    ],
+    "vars": {
+        "SHARE_DOMAIN": "linker.habitsofmind.com.au",
+        "TURNSTILE_SITE_KEY": "0x4AAAAAADKIGS8sR36T2rtx",
+    },
+    // Secrets (set via `wrangler secret put`):
+    //   ADMIN_PASSWORD
+    //   COOKIE_HMAC_SECRET
+    //   TURNSTILE_SECRET_KEY
 }
