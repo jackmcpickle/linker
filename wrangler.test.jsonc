@@ -4,9 +4,7 @@
     "main": "src/index.ts",
     "compatibility_date": "2025-05-01",
     "compatibility_flags": ["nodejs_compat"],
-    "r2_buckets": [
-        { "binding": "BUCKET", "bucket_name": "test-content" },
-    ],
+    "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "test-content" }],
     "kv_namespaces": [
         { "binding": "LINKS", "id": "test-links" },
         { "binding": "THROTTLE", "id": "test-throttle" },

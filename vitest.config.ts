@@ -5,6 +5,7 @@ export default defineWorkersConfig({
         poolOptions: {
             workers: {
                 isolatedStorage: false,
+                singleWorker: true,
                 wrangler: { configPath: './wrangler.test.jsonc' },
                 miniflare: {
                     compatibilityFlags: ['nodejs_compat'],

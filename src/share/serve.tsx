@@ -4,6 +4,7 @@ import { mimeFor, isHtmlMime } from '../lib/mime';
 import { parseRange } from '../lib/range';
 import { putLink } from '../kv/links';
 import { ListingPage, type ListingEntry } from './views/listing';
+import { serveDownload } from './download';
 
 export const HTML_EDGE_TTL = 60;
 export const ASSET_EDGE_TTL = 3600;
@@ -169,6 +170,10 @@ export async function serveShare(
     link: ShareLink,
     ctx: ExecutionContext,
 ): Promise<Response> {
+    if ((link.linkType ?? 'browse') === 'download') {
+        return serveDownload(c, link, ctx);
+    }
+
     const url = new URL(c.req.url);
     const path = url.pathname;
     const rangeHeader = c.req.header('Range') ?? null;

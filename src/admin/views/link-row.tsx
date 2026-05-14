@@ -1,11 +1,12 @@
 import type { FC } from 'hono/jsx';
 import type { ShareLink } from '../../types';
+import type { LinkPair } from '../../kv/links';
 import { EXPIRY_PRESETS, isNeverExpires } from '../../lib/expiry';
 import { isoAt, relative } from '../../lib/time';
 import { Spinner } from './components/spinner';
 
 type Props = {
-    link: ShareLink;
+    pair: LinkPair;
     shareDomain: string;
     mode?: 'view' | 'edit';
 };
@@ -26,44 +27,103 @@ const statusBadge = {
     expired: 'bg-zinc-200 text-zinc-600',
 } as const;
 
-export const LinkRow: FC<Props> = ({ link, shareDomain, mode = 'view' }) => {
-    if (mode === 'edit') return <LinkRowEdit link={link} />;
+export const LinkRow: FC<Props> = ({ pair, shareDomain, mode = 'view' }) => {
+    const canonical = pair.browse;
+    if (mode === 'edit') return <LinkRowEdit link={canonical} />;
 
-    const s = status(link);
-    const url = shareUrl(link.token, shareDomain);
+    const s = status(canonical);
+    const viewUrl = shareUrl(canonical.token, shareDomain);
+    const downloadUrl = pair.download
+        ? shareUrl(pair.download.token, shareDomain)
+        : null;
+    const totalViews = canonical.viewCount + (pair.download?.viewCount ?? 0);
+    const totalDownloads = pair.download?.downloadCount ?? 0;
+    const lastAccessed = Math.max(
+        canonical.lastAccessedAt ?? 0,
+        pair.download?.lastAccessedAt ?? 0,
+    );
 
     return (
         <tr
-            id={`link-${link.token}`}
+            id={`link-${canonical.token}`}
             class="border-b border-zinc-100 align-top"
         >
             <td class="px-4 py-3">
-                <div class="font-medium">{link.name || link.token}</div>
-                {link.notes ? (
-                    <div class="mt-0.5 text-xs text-zinc-500">{link.notes}</div>
+                <div class="font-medium">
+                    {canonical.name || canonical.token}
+                </div>
+                {canonical.notes ? (
+                    <div class="mt-0.5 text-xs text-zinc-500">
+                        {canonical.notes}
+                    </div>
                 ) : null}
                 <div class="mt-1 font-mono text-xs text-zinc-400">
-                    {link.prefix}
+                    {canonical.prefix}
                 </div>
             </td>
             <td class="px-4 py-3">
-                <div class="flex items-center gap-2">
-                    <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener"
-                        class="max-w-[18ch] truncate font-mono text-xs text-blue-700 hover:underline"
-                    >
-                        {link.token}
-                    </a>
-                    <button
-                        type="button"
-                        class="text-xs text-zinc-500 hover:text-zinc-900"
-                        data-copy={url}
-                        title="Copy URL"
-                    >
-                        copy
-                    </button>
+                <div class="flex flex-col gap-1.5">
+                    <div class="flex items-center gap-2">
+                        <span class="w-20 text-xs text-zinc-500">
+                            View link
+                        </span>
+                        <a
+                            href={viewUrl}
+                            target="_blank"
+                            rel="noopener"
+                            class="max-w-[18ch] truncate font-mono text-xs text-blue-700 hover:underline"
+                        >
+                            {canonical.token}
+                        </a>
+                        <button
+                            type="button"
+                            class="text-xs text-zinc-500 hover:text-zinc-900"
+                            data-copy={viewUrl}
+                            title="Copy view URL"
+                        >
+                            copy
+                        </button>
+                    </div>
+                    {downloadUrl && pair.download ? (
+                        <div class="flex items-center gap-2">
+                            <span class="w-20 text-xs text-zinc-500">
+                                Download link
+                            </span>
+                            <a
+                                href={downloadUrl}
+                                target="_blank"
+                                rel="noopener"
+                                class="max-w-[18ch] truncate font-mono text-xs text-blue-700 hover:underline"
+                            >
+                                {pair.download.token}
+                            </a>
+                            <button
+                                type="button"
+                                class="text-xs text-zinc-500 hover:text-zinc-900"
+                                data-copy={downloadUrl}
+                                title="Copy download URL"
+                            >
+                                copy
+                            </button>
+                        </div>
+                    ) : (
+                        <div class="flex items-center gap-2">
+                            <span class="w-20 text-xs text-zinc-500">
+                                Download link
+                            </span>
+                            <button
+                                type="button"
+                                class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-50"
+                                hx-post={`/_admin/links/${canonical.token}/pair`}
+                                hx-target={`#link-${canonical.token}`}
+                                hx-swap="outerHTML"
+                                title="Create a paired download link for this share"
+                            >
+                                <Spinner class="h-3 w-3" />
+                                Create download link
+                            </button>
+                        </div>
+                    )}
                 </div>
             </td>
             <td class="px-4 py-3">
@@ -73,7 +133,7 @@ export const LinkRow: FC<Props> = ({ link, shareDomain, mode = 'view' }) => {
                     {s}
                 </span>
                 {s === 'active' ? (
-                    isNeverExpires(link.expiresAt) ? (
+                    isNeverExpires(canonical.expiresAt) ? (
                         <div class="mt-1 text-xs text-zinc-500">
                             never expires
                         </div>
@@ -81,24 +141,25 @@ export const LinkRow: FC<Props> = ({ link, shareDomain, mode = 'view' }) => {
                         <div class="mt-1 text-xs text-zinc-500">
                             expires{' '}
                             <time
-                                datetime={isoAt(link.expiresAt)}
+                                datetime={isoAt(canonical.expiresAt)}
                                 data-time-rel
                             >
-                                {relative(link.expiresAt)}
+                                {relative(canonical.expiresAt)}
                             </time>
                         </div>
                     )
                 ) : null}
             </td>
             <td class="px-4 py-3 text-xs text-zinc-500">
-                <div>{link.viewCount} views</div>
-                {link.lastAccessedAt ? (
+                <div>{totalViews} views</div>
+                {pair.download ? <div>{totalDownloads} downloads</div> : null}
+                {lastAccessed > 0 ? (
                     <div class="text-zinc-400">
                         <time
-                            datetime={isoAt(link.lastAccessedAt)}
+                            datetime={isoAt(lastAccessed)}
                             data-time-rel
                         >
-                            {relative(link.lastAccessedAt)}
+                            {relative(lastAccessed)}
                         </time>
                     </div>
                 ) : (
@@ -117,11 +178,11 @@ export const LinkRow: FC<Props> = ({ link, shareDomain, mode = 'view' }) => {
                                     <button
                                         type="button"
                                         class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-100"
-                                        hx-post={`/_admin/links/${link.token}/extend`}
+                                        hx-post={`/_admin/links/${canonical.token}/extend`}
                                         hx-vals={JSON.stringify({
                                             preset: p.id,
                                         })}
-                                        hx-target={`#link-${link.token}`}
+                                        hx-target={`#link-${canonical.token}`}
                                         hx-swap="outerHTML"
                                     >
                                         <Spinner class="h-3 w-3" />
@@ -134,8 +195,8 @@ export const LinkRow: FC<Props> = ({ link, shareDomain, mode = 'view' }) => {
                     <button
                         type="button"
                         class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50"
-                        hx-get={`/_admin/links/${link.token}/edit`}
-                        hx-target={`#link-${link.token}`}
+                        hx-get={`/_admin/links/${canonical.token}/edit`}
+                        hx-target={`#link-${canonical.token}`}
                         hx-swap="outerHTML"
                     >
                         <Spinner class="h-3 w-3" />
@@ -145,8 +206,8 @@ export const LinkRow: FC<Props> = ({ link, shareDomain, mode = 'view' }) => {
                         <button
                             type="button"
                             class="inline-flex items-center gap-1 rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
-                            hx-post={`/_admin/links/${link.token}/revoke`}
-                            hx-target={`#link-${link.token}`}
+                            hx-post={`/_admin/links/${canonical.token}/revoke`}
+                            hx-target={`#link-${canonical.token}`}
                             hx-swap="outerHTML"
                             hx-confirm="Revoke this link? Recipients will see the expired page immediately."
                         >
@@ -157,8 +218,8 @@ export const LinkRow: FC<Props> = ({ link, shareDomain, mode = 'view' }) => {
                     <button
                         type="button"
                         class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-500 hover:text-red-700"
-                        hx-delete={`/_admin/links/${link.token}`}
-                        hx-target={`#link-${link.token}`}
+                        hx-delete={`/_admin/links/${canonical.token}`}
+                        hx-target={`#link-${canonical.token}`}
                         hx-swap="outerHTML"
                         hx-confirm="Permanently delete this share record?"
                     >

@@ -3,6 +3,7 @@
  * "Folders" are virtual: rendered from `delimitedPrefixes`, created by
  * uploading a zero-byte `.keep` marker.
  */
+import { downloadZip } from 'client-zip';
 
 export const KEEP_FILE = '.keep';
 export const PAGE_LIMIT = 50;
@@ -421,7 +422,11 @@ export async function* collectFolderEntries(
             cursor,
         });
         for (const o of page.objects) {
-            if (o.key.endsWith(`/${KEEP_FILE}`) || o.key === `${prefix}${KEEP_FILE}`) continue;
+            if (
+                o.key.endsWith(`/${KEEP_FILE}`) ||
+                o.key === `${prefix}${KEEP_FILE}`
+            )
+                continue;
             keys.push(o.key);
         }
         if (keys.length > ZIP_FOLDER_CAP) {
@@ -442,6 +447,57 @@ export async function* collectFolderEntries(
             lastModified: obj.uploaded,
         };
     }
+}
+
+/**
+ * Stream a single R2 object as an attachment. Throws if the key is missing —
+ * caller decides how to surface the error (toast vs HTML page).
+ */
+export async function streamObject(
+    bucket: R2Bucket,
+    key: string,
+    filename?: string,
+): Promise<Response> {
+    const obj = await bucket.get(key);
+    if (!obj) throw new Error('File not found.');
+    const downloadName = filename ?? key.slice(parentOf(key).length);
+    return new Response(obj.body, {
+        headers: {
+            'Content-Type':
+                obj.httpMetadata?.contentType ?? 'application/octet-stream',
+            'Content-Length': String(obj.size),
+            'Content-Disposition': contentDisposition(downloadName),
+            'Cache-Control': 'no-store',
+        },
+    });
+}
+
+/**
+ * Stream a zip of every object under `prefix`. Pre-flights via
+ * `collectFolderEntries` so cap-exceeded / empty errors surface before the
+ * stream starts.
+ */
+export async function streamFolderZip(
+    bucket: R2Bucket,
+    prefix: string,
+    zipName?: string,
+): Promise<Response> {
+    const entries: ZipEntry[] = [];
+    for await (const entry of collectFolderEntries(bucket, prefix)) {
+        entries.push(entry);
+    }
+    if (entries.length === 0) throw new Error('Folder is empty.');
+
+    const folderName = prefix.replace(/\/+$/, '').split('/').pop() || 'archive';
+    const name = zipName ?? `${folderName}.zip`;
+    const res = downloadZip(entries);
+    return new Response(res.body, {
+        headers: {
+            'Content-Type': 'application/zip',
+            'Content-Disposition': contentDisposition(name),
+            'Cache-Control': 'no-store',
+        },
+    });
 }
 
 // ---------- delete (existing) ----------

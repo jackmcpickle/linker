@@ -1,18 +1,18 @@
 import type { FC } from 'hono/jsx';
 import { Layout } from './layout';
-import type { ShareLink } from '../../types';
+import type { LinkPair } from '../../kv/links';
 import { LinkRow } from './link-row';
 import { CreateLinkForm } from './link-form';
 import { Spinner } from './components/spinner';
 
 type Props = {
-    links: ShareLink[];
+    pairs: LinkPair[];
     shareDomain: string;
     defaultPrefix?: string;
 };
 
 export const DashboardPage: FC<Props> = ({
-    links,
+    pairs,
     shareDomain,
     defaultPrefix,
 }) => (
@@ -44,7 +44,7 @@ export const DashboardPage: FC<Props> = ({
             <CreateLinkForm defaultPrefix={defaultPrefix} />
 
             <LinkList
-                links={links}
+                pairs={pairs}
                 shareDomain={shareDomain}
             />
 
@@ -56,9 +56,9 @@ export const DashboardPage: FC<Props> = ({
     </Layout>
 );
 
-export const LinkList: FC<Props> = ({ links, shareDomain }) => (
+export const LinkList: FC<Props> = ({ pairs, shareDomain }) => (
     <div id="links-list">
-        {links.length === 0 ? (
+        {pairs.length === 0 ? (
             <div class="rounded-xl border border-dashed border-zinc-300 bg-white p-10 text-center text-zinc-500">
                 No share links yet — create one above.
             </div>
@@ -68,16 +68,16 @@ export const LinkList: FC<Props> = ({ links, shareDomain }) => (
                     <thead>
                         <tr class="border-b border-zinc-200 bg-zinc-50 text-left text-xs tracking-wider text-zinc-500 uppercase">
                             <th class="px-4 py-2 font-medium">Link</th>
-                            <th class="px-4 py-2 font-medium">URL</th>
+                            <th class="px-4 py-2 font-medium">URLs</th>
                             <th class="px-4 py-2 font-medium">Status</th>
                             <th class="px-4 py-2 font-medium">Activity</th>
                             <th class="px-4 py-2 font-medium">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {links.map(link => (
+                        {pairs.map(pair => (
                             <LinkRow
-                                link={link}
+                                pair={pair}
                                 shareDomain={shareDomain}
                             />
                         ))}

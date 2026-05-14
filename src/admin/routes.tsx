@@ -16,7 +16,16 @@ import {
     recordLoginFailure,
 } from '../lib/throttle';
 import { verifyTurnstile } from '../lib/turnstile';
-import { getLink, listLinks, putLink, deleteLink } from '../kv/links';
+import {
+    deletePair,
+    getLink,
+    getPartner,
+    listPairs,
+    mutatePair,
+    putLink,
+    putPair,
+    type LinkPair,
+} from '../kv/links';
 import { generateToken, isValidToken } from '../lib/nanoid';
 import { presetMs } from '../lib/expiry';
 import { Suggestions } from './views/suggestions';
@@ -32,9 +41,7 @@ import {
 } from './views/file-row-edit';
 import {
     abortMultipart,
-    collectFolderEntries,
     completeMultipart,
-    contentDisposition,
     createFolder,
     deletePrefix,
     initMultipart,
@@ -45,11 +52,12 @@ import {
     pushCursor,
     renameFile,
     renameFolder,
+    streamFolderZip,
+    streamObject,
     uploadPart,
     validateName,
     type UploadedPart,
 } from './files';
-import { downloadZip } from 'client-zip';
 
 const admin = new Hono<Env>();
 
@@ -73,12 +81,12 @@ function isSafePrefix(s: string): boolean {
 
 admin.get('/_admin', async c => {
     if (await isAuthed(c)) {
-        const links = await listLinks(c.env.LINKS);
+        const pairs = await listPairs(c.env.LINKS);
         const candidate = normalizePrefix(c.req.query('prefix') ?? '');
         const defaultPrefix = isSafePrefix(candidate) ? candidate : undefined;
         return c.html(
             <DashboardPage
-                links={links}
+                pairs={pairs}
                 shareDomain={c.env.SHARE_DOMAIN}
                 defaultPrefix={defaultPrefix}
             />,
@@ -156,16 +164,16 @@ admin.use('/_admin/*', requireAuth);
 
 // list fragment (HTMX target after mutations)
 admin.get('/_admin/links', async c => {
-    const links = await listLinks(c.env.LINKS);
+    const pairs = await listPairs(c.env.LINKS);
     return c.html(
         <LinkList
-            links={links}
+            pairs={pairs}
             shareDomain={c.env.SHARE_DOMAIN}
         />,
     );
 });
 
-// create
+// create — auto-pairs a browse token + a download token sharing all metadata.
 admin.post('/_admin/links', async c => {
     const form = await c.req.formData();
     const name = String(form.get('name') ?? '').trim();
@@ -179,33 +187,58 @@ admin.post('/_admin/links', async c => {
     }
 
     const now = Date.now();
-    const link: ShareLink = {
-        token: generateToken(),
+    const browseToken = generateToken();
+    const downloadToken = generateToken();
+    const browse: ShareLink = {
+        token: browseToken,
         name,
         notes,
         prefix,
         createdAt: now,
         expiresAt: now + ms,
         viewCount: 0,
+        linkType: 'browse',
+        pairedToken: downloadToken,
     };
-    await putLink(c.env.LINKS, link);
+    const download: ShareLink = {
+        token: downloadToken,
+        name,
+        notes,
+        prefix,
+        createdAt: now,
+        expiresAt: now + ms,
+        viewCount: 0,
+        downloadCount: 0,
+        linkType: 'download',
+        pairedToken: browseToken,
+    };
+    try {
+        await putPair(c.env.LINKS, browse, download);
+    } catch (err) {
+        log({
+            event: 'admin.link.create_fail',
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return toastError(c, 'Failed to create link.', 500);
+    }
     log({
         event: 'admin.link.create',
-        token: link.token,
-        prefix: link.prefix,
-        expiresAt: link.expiresAt,
+        token: browse.token,
+        pairedToken: download.token,
+        prefix,
+        expiresAt: browse.expiresAt,
     });
 
-    // KV list is eventually consistent — splice the new link in so it shows
-    // up immediately, even if `listLinks` hasn't seen the put yet.
-    const links = await listLinks(c.env.LINKS);
-    if (!links.some(l => l.token === link.token)) {
-        links.unshift(link);
+    // KV list is eventually consistent — splice the new pair in so it shows
+    // up immediately, even if `listPairs` hasn't seen the puts yet.
+    const pairs = await listPairs(c.env.LINKS);
+    if (!pairs.some(p => p.browse.token === browse.token)) {
+        pairs.unshift({ browse, download });
     }
     return c.html(
         withToast(
             <LinkList
-                links={links}
+                pairs={pairs}
                 shareDomain={c.env.SHARE_DOMAIN}
             />,
             'success',
@@ -214,15 +247,36 @@ admin.post('/_admin/links', async c => {
     );
 });
 
+async function loadPairByToken(
+    kv: KVNamespace,
+    token: string,
+): Promise<LinkPair | null> {
+    if (!isValidToken(token)) return null;
+    const link = await getLink(kv, token);
+    if (!link) return null;
+    const type = link.linkType ?? 'browse';
+    if (type === 'browse') {
+        const download = link.pairedToken
+            ? ((await getLink(kv, link.pairedToken)) ?? undefined)
+            : undefined;
+        return { browse: link, download };
+    }
+    const browse = link.pairedToken
+        ? await getLink(kv, link.pairedToken)
+        : null;
+    if (browse) return { browse, download: link };
+    // Orphan download — treat as the canonical record for rendering.
+    return { browse: link, download: undefined };
+}
+
 // single row (used by Cancel on edit form)
 admin.get('/_admin/links/:token', async c => {
     const token = c.req.param('token');
-    if (!isValidToken(token)) return toastError(c, 'Link not found.', 404);
-    const link = await getLink(c.env.LINKS, token);
-    if (!link) return toastError(c, 'Link not found.', 404);
+    const pair = await loadPairByToken(c.env.LINKS, token);
+    if (!pair) return toastError(c, 'Link not found.', 404);
     return c.html(
         <LinkRow
-            link={link}
+            pair={pair}
             shareDomain={c.env.SHARE_DOMAIN}
         />,
     );
@@ -231,19 +285,18 @@ admin.get('/_admin/links/:token', async c => {
 // edit form (inline)
 admin.get('/_admin/links/:token/edit', async c => {
     const token = c.req.param('token');
-    if (!isValidToken(token)) return toastError(c, 'Link not found.', 404);
-    const link = await getLink(c.env.LINKS, token);
-    if (!link) return toastError(c, 'Link not found.', 404);
+    const pair = await loadPairByToken(c.env.LINKS, token);
+    if (!pair) return toastError(c, 'Link not found.', 404);
     return c.html(
         <LinkRow
-            link={link}
+            pair={pair}
             shareDomain={c.env.SHARE_DOMAIN}
             mode="edit"
         />,
     );
 });
 
-// update name/prefix/notes
+// update name/prefix/notes — applies to both halves
 admin.patch('/_admin/links/:token', async c => {
     const token = c.req.param('token');
     if (!isValidToken(token)) return toastError(c, 'Link not found.', 404);
@@ -258,12 +311,16 @@ admin.patch('/_admin/links/:token', async c => {
     if (!name || !prefix)
         return toastError(c, 'Name and folder required.', 400);
 
-    const updated: ShareLink = { ...link, name, prefix, notes };
-    await putLink(c.env.LINKS, updated);
+    const updated = await mutatePair(c.env.LINKS, link, {
+        name,
+        prefix,
+        notes,
+    });
+    const pair = await loadPairByToken(c.env.LINKS, updated.token);
     return c.html(
         withToast(
             <LinkRow
-                link={updated}
+                pair={pair ?? { browse: updated }}
                 shareDomain={c.env.SHARE_DOMAIN}
             />,
             'success',
@@ -272,7 +329,7 @@ admin.patch('/_admin/links/:token', async c => {
     );
 });
 
-// extend expiry — sets new absolute expiresAt = now + preset (un-revokes if revoked)
+// extend expiry — applies to both halves; un-revokes if revoked
 admin.post('/_admin/links/:token/extend', async c => {
     const token = c.req.param('token');
     if (!isValidToken(token)) return toastError(c, 'Link not found.', 404);
@@ -285,22 +342,21 @@ admin.post('/_admin/links/:token/extend', async c => {
     if (ms === null) return toastError(c, 'Invalid expiry preset.', 400);
 
     const now = Date.now();
-    const updated: ShareLink = {
-        ...link,
+    const updated = await mutatePair(c.env.LINKS, link, {
         expiresAt: now + ms,
         revokedAt: undefined,
-    };
-    await putLink(c.env.LINKS, updated);
+    });
     log({
         event: 'admin.link.extend',
         token,
         preset: presetId,
         expiresAt: updated.expiresAt,
     });
+    const pair = await loadPairByToken(c.env.LINKS, updated.token);
     return c.html(
         withToast(
             <LinkRow
-                link={updated}
+                pair={pair ?? { browse: updated }}
                 shareDomain={c.env.SHARE_DOMAIN}
             />,
             'success',
@@ -309,19 +365,21 @@ admin.post('/_admin/links/:token/extend', async c => {
     );
 });
 
-// revoke
+// revoke — applies to both halves
 admin.post('/_admin/links/:token/revoke', async c => {
     const token = c.req.param('token');
     if (!isValidToken(token)) return toastError(c, 'Link not found.', 404);
     const link = await getLink(c.env.LINKS, token);
     if (!link) return toastError(c, 'Link not found.', 404);
-    const updated: ShareLink = { ...link, revokedAt: Date.now() };
-    await putLink(c.env.LINKS, updated);
+    const updated = await mutatePair(c.env.LINKS, link, {
+        revokedAt: Date.now(),
+    });
     log({ event: 'admin.link.revoke', token });
+    const pair = await loadPairByToken(c.env.LINKS, updated.token);
     return c.html(
         withToast(
             <LinkRow
-                link={updated}
+                pair={pair ?? { browse: updated }}
                 shareDomain={c.env.SHARE_DOMAIN}
             />,
             'success',
@@ -330,13 +388,79 @@ admin.post('/_admin/links/:token/revoke', async c => {
     );
 });
 
-// hard delete — return empty so HTMX outerHTML swap removes the row
+// hard delete — removes both halves; HTMX swap removes the row
 admin.delete('/_admin/links/:token', async c => {
     const token = c.req.param('token');
     if (!isValidToken(token)) return toastError(c, 'Link not found.', 404);
-    await deleteLink(c.env.LINKS, token);
+    const link = await getLink(c.env.LINKS, token);
+    if (link) await deletePair(c.env.LINKS, link);
     log({ event: 'admin.link.delete', token });
     return c.html(withToast('', 'success', 'Link deleted.'));
+});
+
+// create a download partner for an unpaired (legacy) browse-only link
+admin.post('/_admin/links/:token/pair', async c => {
+    const token = c.req.param('token');
+    if (!isValidToken(token)) return toastError(c, 'Link not found.', 404);
+    const link = await getLink(c.env.LINKS, token);
+    if (!link) return toastError(c, 'Link not found.', 404);
+
+    const type = link.linkType ?? 'browse';
+    if (type !== 'browse') {
+        return toastError(
+            c,
+            'Only browse links can spawn a download partner.',
+            400,
+        );
+    }
+    if (link.pairedToken) {
+        const partner = await getPartner(c.env.LINKS, link);
+        if (partner) return toastError(c, 'Already paired.', 409);
+        // Stale pointer — fall through and rebuild the partner.
+    }
+
+    const now = Date.now();
+    const downloadToken = generateToken();
+    const browseUpdated: ShareLink = {
+        ...link,
+        linkType: 'browse',
+        pairedToken: downloadToken,
+    };
+    const download: ShareLink = {
+        token: downloadToken,
+        name: link.name,
+        notes: link.notes,
+        prefix: link.prefix,
+        createdAt: now,
+        expiresAt: link.expiresAt,
+        revokedAt: link.revokedAt,
+        viewCount: 0,
+        downloadCount: 0,
+        linkType: 'download',
+        pairedToken: link.token,
+    };
+    try {
+        await putLink(c.env.LINKS, download);
+        await putLink(c.env.LINKS, browseUpdated);
+    } catch (err) {
+        log({
+            event: 'admin.link.pair_fail',
+            token,
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return toastError(c, 'Failed to create download link.', 500);
+    }
+    log({ event: 'admin.link.pair_create', token, pairedToken: downloadToken });
+    return c.html(
+        withToast(
+            <LinkRow
+                pair={{ browse: browseUpdated, download }}
+                shareDomain={c.env.SHARE_DOMAIN}
+            />,
+            'success',
+            'Download link created.',
+        ),
+    );
 });
 
 // typeahead — bucket.list({ prefix, delimiter: '/' })
@@ -750,19 +874,15 @@ admin.patch('/_admin/files/folder', async c => {
 admin.get('/_admin/files/object/download', async c => {
     const key = c.req.query('key') ?? '';
     if (!key || key.includes('..')) return toastError(c, 'Invalid key.', 400);
-    const obj = await c.env.BUCKET.get(key);
-    if (!obj) return toastError(c, 'File not found.', 404);
-    const basename = key.slice(parentOf(key).length);
-    log({ event: 'admin.files.object.download', key, size: obj.size });
-    return new Response(obj.body, {
-        headers: {
-            'Content-Type':
-                obj.httpMetadata?.contentType ?? 'application/octet-stream',
-            'Content-Length': String(obj.size),
-            'Content-Disposition': contentDisposition(basename),
-            'Cache-Control': 'no-store',
-        },
-    });
+    try {
+        const res = await streamObject(c.env.BUCKET, key);
+        log({ event: 'admin.files.object.download', key });
+        return res;
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Download failed.';
+        const status = msg === 'File not found.' ? 404 : 400;
+        return toastError(c, msg, status);
+    }
 });
 
 admin.get('/_admin/files/folder/download', async c => {
@@ -774,20 +894,10 @@ admin.get('/_admin/files/folder/download', async c => {
         return toastError(c, 'Invalid folder.', 400);
     }
     if (!prefix) return toastError(c, 'Refusing to zip root.', 400);
-
-    // Consume the generator upfront so a pre-flight cap error surfaces as a
-    // toast instead of a broken stream. The R2 list completes here; object
-    // bodies stream lazily through client-zip below.
-    const entries: Array<{
-        name: string;
-        input: ReadableStream<Uint8Array>;
-        size: number;
-        lastModified?: Date;
-    }> = [];
     try {
-        for await (const entry of collectFolderEntries(c.env.BUCKET, prefix)) {
-            entries.push(entry);
-        }
+        const res = await streamFolderZip(c.env.BUCKET, prefix);
+        log({ event: 'admin.files.folder.download', prefix });
+        return res;
     } catch (err) {
         return toastError(
             c,
@@ -795,27 +905,6 @@ admin.get('/_admin/files/folder/download', async c => {
             400,
         );
     }
-    if (entries.length === 0) {
-        return toastError(c, 'Folder is empty.', 400);
-    }
-
-    const folderName =
-        prefix.replace(/\/+$/, '').split('/').pop() || 'archive';
-    const zipName = `${folderName}.zip`;
-    log({
-        event: 'admin.files.folder.download',
-        prefix,
-        count: entries.length,
-    });
-
-    const res = downloadZip(entries);
-    return new Response(res.body, {
-        headers: {
-            'Content-Type': 'application/zip',
-            'Content-Disposition': contentDisposition(zipName),
-            'Cache-Control': 'no-store',
-        },
-    });
 });
 
 admin.delete('/_admin/files/object', async c => {

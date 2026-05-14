@@ -129,20 +129,8 @@ describe('uploadPart + completeMultipart', () => {
         expect(init.uploadId).toBeTruthy();
         const partA = new Uint8Array(5_242_880).fill(0xaa); // 5MB (min)
         const partB = new Uint8Array(524_288).fill(0xbb); // 0.5MB
-        const p1 = await uploadPart(
-            bucket,
-            init.key,
-            init.uploadId!,
-            1,
-            partA,
-        );
-        const p2 = await uploadPart(
-            bucket,
-            init.key,
-            init.uploadId!,
-            2,
-            partB,
-        );
+        const p1 = await uploadPart(bucket, init.key, init.uploadId!, 1, partA);
+        const p2 = await uploadPart(bucket, init.key, init.uploadId!, 2, partB);
         await completeMultipart(bucket, init.key, init.uploadId!, [p2, p1]);
         const got = await bucket.get(init.key);
         expect(got).not.toBeNull();
@@ -271,21 +259,17 @@ describe('renameFolder', () => {
 
     // Cap test: skipped by default because seeding 1001 objects against the
     // real R2 simulator is slow. Flip to `it(` locally to run.
-    it.skip(
-        'refuses folders above RENAME_FOLDER_CAP',
-        async () => {
-            for (let i = 0; i < 1001; i++) {
-                await bucket.put(`big/${i}.txt`, `${i}`);
-            }
-            await expect(renameFolder(bucket, 'big/', 'huge')).rejects.toThrow(
-                /too large/,
-            );
-            // source untouched
-            const head = await bucket.head('big/0.txt');
-            expect(head).not.toBeNull();
-        },
-        120_000,
-    );
+    it.skip('refuses folders above RENAME_FOLDER_CAP', async () => {
+        for (let i = 0; i < 1001; i++) {
+            await bucket.put(`big/${i}.txt`, `${i}`);
+        }
+        await expect(renameFolder(bucket, 'big/', 'huge')).rejects.toThrow(
+            /too large/,
+        );
+        // source untouched
+        const head = await bucket.head('big/0.txt');
+        expect(head).not.toBeNull();
+    }, 120_000);
 });
 
 describe('contentDisposition', () => {
@@ -329,4 +313,3 @@ describe('collectFolderEntries', () => {
         }).rejects.toThrow(/root/);
     });
 });
-

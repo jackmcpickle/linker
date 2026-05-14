@@ -15,6 +15,8 @@ export type Bindings = {
     TURNSTILE_SECRET_KEY: string;
 };
 
+export type LinkType = 'browse' | 'download';
+
 export type ShareLink = {
     token: string;
     name: string;
@@ -25,6 +27,12 @@ export type ShareLink = {
     revokedAt?: number;
     viewCount: number;
     lastAccessedAt?: number;
+    /** Undefined on legacy records is treated as 'browse'. */
+    linkType?: LinkType;
+    /** Token of the paired record (the opposite linkType). Undefined = unpaired. */
+    pairedToken?: string;
+    /** Bumped on each download action. Independent from viewCount. */
+    downloadCount?: number;
 };
 
 export type Env = { Bindings: Bindings };
