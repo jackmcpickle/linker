@@ -56,9 +56,50 @@
         });
     }
 
+    // Show a busy state on a plain `<a data-download-action>` while the browser
+    // fetches the response (no HTMX is involved). Reuses the .htmx-request CSS
+    // class so the embedded <Spinner> SVG appears and the element dims.
+    var DOWNLOAD_BUSY_MS = 6000;
+
+    function bindDownload(root) {
+        root.querySelectorAll('[data-download-action]').forEach(function (el) {
+            if (el.__dlBound) return;
+            el.__dlBound = true;
+            el.addEventListener('click', function (e) {
+                if (el.classList.contains('htmx-request')) {
+                    e.preventDefault();
+                    return;
+                }
+                var url = el.getAttribute('href');
+                if (!url) return;
+                e.preventDefault();
+                el.classList.add('htmx-request');
+                var a = document.createElement('a');
+                a.href = url;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(function () {
+                    el.classList.remove('htmx-request');
+                }, DOWNLOAD_BUSY_MS);
+            });
+        });
+    }
+
+    // Stuck spinners after bfcache restore aren't useful — drop the busy class.
+    window.addEventListener('pagehide', function () {
+        document
+            .querySelectorAll('[data-download-action].htmx-request')
+            .forEach(function (el) {
+                el.classList.remove('htmx-request');
+            });
+    });
+
     function refresh(root) {
         formatTimes(root);
         bindCopy(root);
+        bindDownload(root);
     }
 
     // Suggestion click → set form's prefix input, clear suggestion panel.

@@ -1,4 +1,33 @@
 import type { FC } from 'hono/jsx';
+import { raw } from 'hono/html';
+import { Spinner } from '../../admin/views/components/spinner';
+
+const DOWNLOAD_SCRIPT = `
+(function(){
+  var DOWNLOAD_BUSY_MS = 6000;
+  document.querySelectorAll('[data-download-action]').forEach(function(el){
+    el.addEventListener('click', function(e){
+      if (el.classList.contains('htmx-request')) { e.preventDefault(); return; }
+      var url = el.getAttribute('href');
+      if (!url) return;
+      e.preventDefault();
+      el.classList.add('htmx-request');
+      var a = document.createElement('a');
+      a.href = url;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function(){ el.classList.remove('htmx-request'); }, DOWNLOAD_BUSY_MS);
+    });
+  });
+  window.addEventListener('pagehide', function(){
+    document.querySelectorAll('[data-download-action].htmx-request').forEach(function(el){
+      el.classList.remove('htmx-request');
+    });
+  });
+})();
+`;
 
 type Props = {
     name: string;
@@ -84,6 +113,14 @@ export const DownloadPage: FC<Props> = ({
           border: 1px solid #fecaca;
           border-radius: 0.375rem;
         }
+        .htmx-spinner { display: none; }
+        .htmx-request .htmx-spinner,
+        .htmx-request.htmx-spinner { display: inline-block; }
+        a.btn.htmx-request {
+          pointer-events: none;
+          opacity: 0.7;
+        }
+        .htmx-spinner { width: 1rem; height: 1rem; margin-right: 0.25rem; }
         @media (prefers-color-scheme: dark) {
           body { background: #09090b; color: #e4e4e7; }
           .card { background: #18181b; border-color: #27272a; }
@@ -104,12 +141,15 @@ export const DownloadPage: FC<Props> = ({
                         <a
                             class="btn"
                             href={actionHref}
+                            data-download-action
                         >
+                            <Spinner />
                             Download
                         </a>
                     ) : null}
                 </div>
             </main>
+            <script>{raw(DOWNLOAD_SCRIPT)}</script>
         </body>
     </html>
 );
