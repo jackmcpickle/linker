@@ -1,10 +1,13 @@
 {
+    "account_id": "d30f9ba7d890512d5c571600943a0d93",
     "$schema": "node_modules/wrangler/config-schema.json",
     "name": "linker",
     "main": "src/index.ts",
     "workers_dev": true,
     "compatibility_date": "2025-05-01",
-    "compatibility_flags": ["nodejs_compat"],
+    "compatibility_flags": [
+        "nodejs_compat"
+    ],
     "placement": {
         // Use one of the following options (mutually exclusive):
         "mode": "smart",
