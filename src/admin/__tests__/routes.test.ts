@@ -234,3 +234,74 @@ describe('rename (HTTP)', () => {
         expect([301, 302, 303, 307, 308]).toContain(res.status);
     });
 });
+
+describe('download (HTTP)', () => {
+    it('GET /_admin/files/object/download streams the file', async () => {
+        await env.BUCKET.put('docs/hello.txt', 'hi-there', {
+            httpMetadata: { contentType: 'text/plain' },
+        });
+        const res = await SELF.fetch(
+            `${BASE}/_admin/files/object/download?key=${encodeURIComponent('docs/hello.txt')}`,
+            authed({ method: 'GET' }),
+        );
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toBe('text/plain');
+        expect(res.headers.get('content-disposition')).toContain('hello.txt');
+        expect(await res.text()).toBe('hi-there');
+    });
+
+    it('returns 404 when key missing', async () => {
+        const res = await SELF.fetch(
+            `${BASE}/_admin/files/object/download?key=${encodeURIComponent('nope.txt')}`,
+            authed({ method: 'GET' }),
+        );
+        expect(res.status).toBe(404);
+    });
+
+    it('GET /_admin/files/folder/download returns a zip', async () => {
+        await env.BUCKET.put('photos/a.txt', 'aaaa');
+        await env.BUCKET.put('photos/sub/b.txt', 'bbbb');
+        const res = await SELF.fetch(
+            `${BASE}/_admin/files/folder/download?prefix=${encodeURIComponent('photos/')}`,
+            authed({ method: 'GET' }),
+        );
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toBe('application/zip');
+        expect(res.headers.get('content-disposition')).toContain('photos.zip');
+        const buf = new Uint8Array(await res.arrayBuffer());
+        // Local file header signature 'PK\x03\x04'
+        expect(buf[0]).toBe(0x50);
+        expect(buf[1]).toBe(0x4b);
+        expect(buf[2]).toBe(0x03);
+        expect(buf[3]).toBe(0x04);
+        // Filename of first entry is right after the 30-byte LFH
+        const decoder = new TextDecoder();
+        const first = decoder.decode(buf.slice(30, 60));
+        // One of the two files should be the first entry (R2 list order may vary)
+        expect(first.startsWith('a.txt') || first.startsWith('sub/b.txt')).toBe(
+            true,
+        );
+    });
+
+    it('folder download refuses empty folder', async () => {
+        await env.BUCKET.put('empty/.keep', new Uint8Array(0));
+        const res = await SELF.fetch(
+            `${BASE}/_admin/files/folder/download?prefix=${encodeURIComponent('empty/')}`,
+            authed({ method: 'GET' }),
+        );
+        expect(res.status).toBe(400);
+        expect((await res.text()).toLowerCase()).toContain('empty');
+    });
+
+    it('download requires auth', async () => {
+        const res = await SELF.fetch(
+            `${BASE}/_admin/files/object/download?key=anything.txt`,
+            {
+                method: 'GET',
+                headers: { host: 'localhost' },
+                redirect: 'manual',
+            },
+        );
+        expect([301, 302, 303, 307, 308]).toContain(res.status);
+    });
+});

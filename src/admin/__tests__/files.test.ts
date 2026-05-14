@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
     CHUNK_SIZE,
     abortMultipart,
+    collectFolderEntries,
     completeMultipart,
+    contentDisposition,
     initMultipart,
     listAt,
     parsePrefix,
@@ -285,3 +287,46 @@ describe('renameFolder', () => {
         120_000,
     );
 });
+
+describe('contentDisposition', () => {
+    it('returns plain attachment for ascii filenames', () => {
+        const h = contentDisposition('hello.txt');
+        expect(h).toBe('attachment; filename="hello.txt"');
+    });
+    it('adds RFC 5987 extended form for unicode', () => {
+        const h = contentDisposition('café — résumé.pdf');
+        expect(h).toMatch(/^attachment; filename="[^"]+"; filename\*=UTF-8''/);
+        expect(h).toContain(encodeURIComponent('café — résumé.pdf'));
+    });
+    it('strips quotes and backslashes from the ascii fallback', () => {
+        const h = contentDisposition('quote".txt');
+        expect(h).toContain('filename="quote_.txt"');
+    });
+});
+
+describe('collectFolderEntries', () => {
+    it('yields recursive entries with relative names and skips .keep', async () => {
+        await bucket.put('a/.keep', new Uint8Array(0));
+        await bucket.put('a/x.txt', 'x');
+        await bucket.put('a/sub/y.txt', 'yy');
+        await bucket.put('a/sub/.keep', new Uint8Array(0));
+
+        const out: { name: string; size: number }[] = [];
+        for await (const e of collectFolderEntries(bucket, 'a/')) {
+            out.push({ name: e.name, size: e.size });
+            // drain stream so R2 releases the body
+            await e.input.cancel();
+        }
+        const names = out.map(o => o.name).sort();
+        expect(names).toEqual(['sub/y.txt', 'x.txt']);
+    });
+
+    it('refuses root', async () => {
+        await expect(async () => {
+            for await (const _e of collectFolderEntries(bucket, '')) {
+                /* nothing */
+            }
+        }).rejects.toThrow(/root/);
+    });
+});
+

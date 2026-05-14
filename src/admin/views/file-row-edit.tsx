@@ -47,6 +47,13 @@ export const FolderRowStatic: FC<{
                     >
                         + link
                     </a>
+                    <a
+                        href={`/_admin/files/folder/download?prefix=${encodeURIComponent(childPrefix)}`}
+                        class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-0.5 text-xs text-zinc-500 hover:border-zinc-900 hover:text-zinc-900"
+                        title="Download folder as .zip (max 1000 items)"
+                    >
+                        download
+                    </a>
                     <button
                         type="button"
                         class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-0.5 text-xs text-zinc-500 hover:border-zinc-900 hover:text-zinc-900"
@@ -98,6 +105,13 @@ export const FileRowStatic: FC<{
                         title="Create share link for this file"
                     >
                         + link
+                    </a>
+                    <a
+                        href={`/_admin/files/object/download?key=${encodeURIComponent(entry.key)}`}
+                        class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-0.5 text-xs text-zinc-500 hover:border-zinc-900 hover:text-zinc-900"
+                        title={`Download ${entry.name}`}
+                    >
+                        download
                     </a>
                     <button
                         type="button"

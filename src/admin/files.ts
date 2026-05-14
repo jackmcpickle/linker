@@ -18,6 +18,9 @@ export const CHUNK_SIZE = 25 * 1024 * 1024;
 // keeps a rename request bounded to a single Worker invocation.
 export const RENAME_FOLDER_CAP = DELETE_CAP;
 
+// Folder zip download has the same per-request key cap.
+export const ZIP_FOLDER_CAP = RENAME_FOLDER_CAP;
+
 export type ListedEntry =
     | { kind: 'folder'; name: string; key: string }
     | {
@@ -371,6 +374,74 @@ export async function renameFolder(
         await bucket.delete(keys.slice(i, i + 1000));
     }
     return { renamed: keys.length, newPrefix };
+}
+
+// ---------- download ----------
+
+/**
+ * Build an RFC 5987 / 6266 Content-Disposition value. ASCII-only filenames
+ * use the simple form; anything else gets the `filename*=UTF-8''…` variant
+ * so browsers preserve unicode and spaces.
+ */
+export function contentDisposition(filename: string): string {
+    const ascii = filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
+    const needsExtended = ascii !== filename;
+    const base = `attachment; filename="${ascii}"`;
+    if (!needsExtended) return base;
+    return `${base}; filename*=UTF-8''${encodeURIComponent(filename)}`;
+}
+
+export type ZipEntry = {
+    name: string;
+    input: ReadableStream<Uint8Array>;
+    size: number;
+    lastModified?: Date;
+};
+
+/**
+ * Yield every object under `prefix` (recursive, no delimiter) for streaming
+ * into a zip. Pre-flights the count; throws *before* the first yield if the
+ * folder exceeds ZIP_FOLDER_CAP so the caller can surface a clean toast.
+ *
+ * `name` is `key.slice(prefix.length)` so nested paths are preserved inside
+ * the archive. `.keep` markers are skipped.
+ */
+export async function* collectFolderEntries(
+    bucket: R2Bucket,
+    prefix: string,
+): AsyncIterable<ZipEntry> {
+    if (!prefix) throw new Error('refusing to zip root');
+
+    const keys: string[] = [];
+    let cursor: string | undefined;
+    do {
+        const page: R2Objects = await bucket.list({
+            prefix,
+            limit: 1000,
+            cursor,
+        });
+        for (const o of page.objects) {
+            if (o.key.endsWith(`/${KEEP_FILE}`) || o.key === `${prefix}${KEEP_FILE}`) continue;
+            keys.push(o.key);
+        }
+        if (keys.length > ZIP_FOLDER_CAP) {
+            throw new Error(
+                `folder too large to download — limit ${ZIP_FOLDER_CAP} items`,
+            );
+        }
+        cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor);
+
+    for (const key of keys) {
+        const obj = await bucket.get(key);
+        if (!obj) continue; // raced with delete — skip
+        yield {
+            name: key.slice(prefix.length),
+            input: obj.body,
+            size: obj.size,
+            lastModified: obj.uploaded,
+        };
+    }
 }
 
 // ---------- delete (existing) ----------

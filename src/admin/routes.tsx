@@ -32,7 +32,9 @@ import {
 } from './views/file-row-edit';
 import {
     abortMultipart,
+    collectFolderEntries,
     completeMultipart,
+    contentDisposition,
     createFolder,
     deletePrefix,
     initMultipart,
@@ -47,6 +49,7 @@ import {
     validateName,
     type UploadedPart,
 } from './files';
+import { downloadZip } from 'client-zip';
 
 const admin = new Hono<Env>();
 
@@ -742,6 +745,77 @@ admin.patch('/_admin/files/folder', async c => {
             `Renamed ${result.renamed} item${result.renamed === 1 ? '' : 's'} to ${newName}/.`,
         ),
     );
+});
+
+admin.get('/_admin/files/object/download', async c => {
+    const key = c.req.query('key') ?? '';
+    if (!key || key.includes('..')) return toastError(c, 'Invalid key.', 400);
+    const obj = await c.env.BUCKET.get(key);
+    if (!obj) return toastError(c, 'File not found.', 404);
+    const basename = key.slice(parentOf(key).length);
+    log({ event: 'admin.files.object.download', key, size: obj.size });
+    return new Response(obj.body, {
+        headers: {
+            'Content-Type':
+                obj.httpMetadata?.contentType ?? 'application/octet-stream',
+            'Content-Length': String(obj.size),
+            'Content-Disposition': contentDisposition(basename),
+            'Cache-Control': 'no-store',
+        },
+    });
+});
+
+admin.get('/_admin/files/folder/download', async c => {
+    const raw = c.req.query('prefix') ?? '';
+    let prefix: string;
+    try {
+        prefix = parsePrefix(raw);
+    } catch {
+        return toastError(c, 'Invalid folder.', 400);
+    }
+    if (!prefix) return toastError(c, 'Refusing to zip root.', 400);
+
+    // Consume the generator upfront so a pre-flight cap error surfaces as a
+    // toast instead of a broken stream. The R2 list completes here; object
+    // bodies stream lazily through client-zip below.
+    const entries: Array<{
+        name: string;
+        input: ReadableStream<Uint8Array>;
+        size: number;
+        lastModified?: Date;
+    }> = [];
+    try {
+        for await (const entry of collectFolderEntries(c.env.BUCKET, prefix)) {
+            entries.push(entry);
+        }
+    } catch (err) {
+        return toastError(
+            c,
+            err instanceof Error ? err.message : 'Zip failed.',
+            400,
+        );
+    }
+    if (entries.length === 0) {
+        return toastError(c, 'Folder is empty.', 400);
+    }
+
+    const folderName =
+        prefix.replace(/\/+$/, '').split('/').pop() || 'archive';
+    const zipName = `${folderName}.zip`;
+    log({
+        event: 'admin.files.folder.download',
+        prefix,
+        count: entries.length,
+    });
+
+    const res = downloadZip(entries);
+    return new Response(res.body, {
+        headers: {
+            'Content-Type': 'application/zip',
+            'Content-Disposition': contentDisposition(zipName),
+            'Cache-Control': 'no-store',
+        },
+    });
 });
 
 admin.delete('/_admin/files/object', async c => {
