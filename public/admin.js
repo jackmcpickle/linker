@@ -76,9 +76,6 @@
     });
 
     // ---------- toasts ----------
-    // Allow htmx to process 4xx/5xx responses so the OOB toast in the body is
-    // applied. The handler still respects HX-Reswap: none, so the original
-    // target is left alone on errors.
     if (window.htmx && window.htmx.config) {
         window.htmx.config.responseHandling = [
             { code: '204', swap: false },
@@ -149,6 +146,7 @@
     document.body.addEventListener('htmx:afterSettle', function (e) {
         refresh(e.target);
         bindToasts();
+        bindAllDropzones(e.target);
     });
     document.body.addEventListener('htmx:oobAfterSwap', function () {
         bindToasts();
@@ -163,11 +161,10 @@
     refresh(document);
     bindToasts();
 
-    // Show spinner on native (non-htmx) form submits — htmx forms get the
-    // class automatically.
     document.body.addEventListener('submit', function (e) {
         var form = e.target;
         if (!(form instanceof HTMLFormElement)) return;
+        if (form.matches('[data-dropzone]')) return; // handled below
         if (
             form.hasAttribute('hx-post') ||
             form.hasAttribute('hx-patch') ||
@@ -190,12 +187,193 @@
         });
     });
 
-    // ---------- file browser: drag and drop ----------
+    // ---------- chunked uploads ----------
+    // The HTML responses below come from our own same-origin admin endpoints,
+    // wrapped through htmx.swap which handles HTML insertion with the library's
+    // standard sanitization/processing pipeline.
+    var liveUploads = new Map(); // uploadId → key
+    var PARALLEL_PARTS = 3;
+
+    function progressBar(form) {
+        return form.querySelector('[data-upload-progress]');
+    }
+    function statusEl(form) {
+        return form.querySelector('[data-upload-status]');
+    }
+    function setProgress(form, pct) {
+        var bar = progressBar(form);
+        if (!bar) return;
+        bar.classList.remove('hidden');
+        bar.value = Math.max(0, Math.min(100, pct));
+    }
+    function setStatus(form, text) {
+        var el = statusEl(form);
+        if (!el) return;
+        if (text) {
+            el.textContent = text;
+            el.classList.remove('hidden');
+        } else {
+            el.textContent = '';
+            el.classList.add('hidden');
+        }
+    }
+    function resetUploadUI(form) {
+        var bar = progressBar(form);
+        if (bar) {
+            bar.value = 0;
+            bar.classList.add('hidden');
+        }
+        setStatus(form, '');
+    }
+
+    function swapFileList(html) {
+        var target = document.getElementById('file-content');
+        if (!target || !window.htmx) return;
+        // htmx's swap parses + inserts via its own pipeline (same handling
+        // used by every other admin response). Same-origin authed endpoint.
+        window.htmx.swap(target, html, { swapStyle: 'outerHTML' });
+    }
+
+    async function uploadOneFile(form, file, prefix) {
+        var initForm = new FormData();
+        initForm.set('prefix', prefix);
+        initForm.set('name', file.name);
+        initForm.set('size', String(file.size));
+        initForm.set('contentType', file.type || 'application/octet-stream');
+
+        var initRes = await fetch('/_admin/files/multipart/init', {
+            method: 'POST',
+            body: initForm,
+        });
+        if (!initRes.ok) throw new Error('init failed');
+        var init = await initRes.json();
+
+        if (init.uploadId === null) {
+            await refreshListing(prefix);
+            return;
+        }
+
+        liveUploads.set(init.uploadId, init.key);
+        var partSize = init.partSize;
+        var total = Math.max(1, Math.ceil(file.size / partSize));
+        var parts = new Array(total);
+        var loaded = 0;
+
+        try {
+            var nextPart = 1;
+            async function worker() {
+                while (true) {
+                    var n = nextPart++;
+                    if (n > total) return;
+                    var start = (n - 1) * partSize;
+                    var end = Math.min(start + partSize, file.size);
+                    var blob = file.slice(start, end);
+                    var url =
+                        '/_admin/files/multipart/part?uploadId=' +
+                        encodeURIComponent(init.uploadId) +
+                        '&key=' +
+                        encodeURIComponent(init.key) +
+                        '&part=' +
+                        n;
+                    var res = await fetch(url, { method: 'PUT', body: blob });
+                    if (!res.ok) throw new Error('part ' + n + ' failed');
+                    var part = await res.json();
+                    parts[n - 1] = part;
+                    loaded += blob.size;
+                    setProgress(form, (loaded / file.size) * 100);
+                }
+            }
+            var workers = [];
+            for (var i = 0; i < Math.min(PARALLEL_PARTS, total); i++) {
+                workers.push(worker());
+            }
+            await Promise.all(workers);
+
+            var completeRes = await fetch('/_admin/files/multipart/complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    uploadId: init.uploadId,
+                    key: init.key,
+                    parts: parts,
+                }),
+            });
+            if (!completeRes.ok) {
+                throw new Error('complete failed');
+            }
+            liveUploads.delete(init.uploadId);
+            swapFileList(await completeRes.text());
+        } catch (err) {
+            liveUploads.delete(init.uploadId);
+            try {
+                await fetch('/_admin/files/multipart/abort', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        uploadId: init.uploadId,
+                        key: init.key,
+                    }),
+                });
+            } catch (_) {}
+            throw err;
+        }
+    }
+
+    async function refreshListing(prefix) {
+        var url = prefix
+            ? '/_admin/files/list?prefix=' + encodeURIComponent(prefix)
+            : '/_admin/files/list';
+        var res = await fetch(url);
+        if (!res.ok) return;
+        swapFileList(await res.text());
+    }
+
+    async function handleDropzoneUpload(form, files) {
+        var prefix = form.getAttribute('data-prefix') || '';
+        form.classList.add('htmx-request');
+        try {
+            for (var i = 0; i < files.length; i++) {
+                var file = files[i];
+                setStatus(
+                    form,
+                    'Uploading ' +
+                        file.name +
+                        ' (' +
+                        (i + 1) +
+                        '/' +
+                        files.length +
+                        ')…',
+                );
+                setProgress(form, 0);
+                await uploadOneFile(form, file, prefix);
+            }
+            fallbackToast(
+                'success',
+                'Uploaded ' +
+                    files.length +
+                    ' file' +
+                    (files.length === 1 ? '' : 's') +
+                    '.',
+            );
+        } catch (err) {
+            fallbackToast(
+                'error',
+                err && err.message ? err.message : 'Upload failed.',
+            );
+        } finally {
+            form.classList.remove('htmx-request');
+            resetUploadUI(form);
+            var input = form.querySelector('[data-dropzone-input]');
+            if (input) input.value = '';
+        }
+    }
+
     function bindDropzone(zone) {
         if (zone.__dzBound) return;
         zone.__dzBound = true;
-        var fileInput = zone.querySelector('input[type="file"]');
+        var fileInput = zone.querySelector('[data-dropzone-input]');
         if (!fileInput) return;
+
         ['dragenter', 'dragover'].forEach(function (ev) {
             zone.addEventListener(ev, function (e) {
                 e.preventDefault();
@@ -213,13 +391,14 @@
         zone.addEventListener('drop', function (e) {
             var dt = e.dataTransfer;
             if (!dt || !dt.files || dt.files.length === 0) return;
-            try {
-                fileInput.files = dt.files;
-                if (window.htmx) window.htmx.trigger(zone, 'submit');
-                else zone.requestSubmit();
-            } catch (_) {
-                // Some browsers reject programmatic FileList assignment.
-            }
+            handleDropzoneUpload(zone, dt.files);
+        });
+        fileInput.addEventListener('change', function () {
+            if (!fileInput.files || fileInput.files.length === 0) return;
+            handleDropzoneUpload(zone, fileInput.files);
+        });
+        zone.addEventListener('submit', function (e) {
+            e.preventDefault();
         });
     }
 
@@ -229,30 +408,34 @@
             .forEach(bindDropzone);
     }
 
-    // ---------- file browser: upload progress ----------
-    document.body.addEventListener('htmx:xhr:progress', function (e) {
-        var form = e.target;
-        if (!form || !form.matches || !form.matches('[data-dropzone]')) return;
-        var bar = form.querySelector('[data-upload-progress]');
-        if (!bar) return;
-        bar.classList.remove('hidden');
-        var d = e.detail;
-        if (d && d.lengthComputable && d.total > 0) {
-            bar.value = Math.round((d.loaded / d.total) * 100);
-        }
-    });
-    document.body.addEventListener('htmx:afterRequest', function (e) {
-        var form = e.target;
-        if (!form || !form.matches || !form.matches('[data-dropzone]')) return;
-        var bar = form.querySelector('[data-upload-progress]');
-        if (bar) {
-            bar.value = 0;
-            bar.classList.add('hidden');
-        }
-    });
-
     bindAllDropzones(document);
-    document.body.addEventListener('htmx:afterSettle', function (e) {
-        bindAllDropzones(e.target);
+
+    // ---------- tab-close safety ----------
+    window.addEventListener('beforeunload', function (e) {
+        if (liveUploads.size === 0) return;
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+    });
+    window.addEventListener('pagehide', function () {
+        if (liveUploads.size === 0) return;
+        liveUploads.forEach(function (key, uploadId) {
+            try {
+                var body = JSON.stringify({ uploadId: uploadId, key: key });
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon(
+                        '/_admin/files/multipart/abort',
+                        new Blob([body], { type: 'application/json' }),
+                    );
+                } else {
+                    fetch('/_admin/files/multipart/abort', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: body,
+                        keepalive: true,
+                    });
+                }
+            } catch (_) {}
+        });
     });
 })();

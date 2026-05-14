@@ -25,14 +25,27 @@ import { toastError, withToast } from './lib/toast';
 import { FilesPage } from './views/files-page';
 import { FileList, listUrl } from './views/file-list';
 import {
+    FileRowEdit,
+    FileRowStatic,
+    FolderRowEdit,
+    FolderRowStatic,
+} from './views/file-row-edit';
+import {
+    abortMultipart,
+    completeMultipart,
     createFolder,
     deletePrefix,
+    initMultipart,
     listAt,
+    parentOf,
     parsePrefix,
     popCursor,
     pushCursor,
-    uploadFile,
+    renameFile,
+    renameFolder,
+    uploadPart,
     validateName,
+    type UploadedPart,
 } from './files';
 
 const admin = new Hono<Env>();
@@ -335,7 +348,6 @@ admin.get('/_admin/prefixes', async c => {
             />,
         );
 
-    // limit guards against accidentally huge listings; UI can paginate later
     const res = await c.env.BUCKET.list({
         prefix: q,
         delimiter: '/',
@@ -345,7 +357,7 @@ admin.get('/_admin/prefixes', async c => {
     const folders = (res.delimitedPrefixes ?? []).slice(0, 12);
     const files = res.objects
         .map(o => o.key)
-        .filter(k => k !== q) // hide exact-match echo
+        .filter(k => k !== q)
         .slice(0, 12);
 
     return c.html(
@@ -400,7 +412,6 @@ async function buildFileListProps(
         );
     }
     if (page.cursor) {
-        // current cursor (possibly empty) is pushed onto stack as we move forward.
         const newPrev = pushCursor(prev, cursor ?? '');
         nextHref = listUrl(prefix, page.cursor, newPrev);
     }
@@ -457,54 +468,280 @@ admin.post('/_admin/files/folder', async c => {
     );
 });
 
-admin.post('/_admin/files/upload', async c => {
+// ---------- multipart upload ----------
+
+admin.post('/_admin/files/multipart/init', async c => {
     const form = await c.req.formData();
+    const prefix = String(form.get('prefix') ?? '');
+    const name = String(form.get('name') ?? '');
+    const sizeRaw = Number(form.get('size'));
+    const contentType = String(form.get('contentType') ?? '');
+    if (!Number.isFinite(sizeRaw) || sizeRaw < 0) {
+        return c.json({ error: 'invalid size' }, 400);
+    }
+    try {
+        const result = await initMultipart(
+            c.env.BUCKET,
+            prefix,
+            name,
+            sizeRaw,
+            contentType,
+        );
+        log({
+            event: 'admin.files.multipart.init',
+            key: result.key,
+            size: sizeRaw,
+            overwriting: result.overwriting,
+            zero: result.uploadId === null,
+        });
+        return c.json(result);
+    } catch (err) {
+        return c.json(
+            { error: err instanceof Error ? err.message : 'init failed' },
+            400,
+        );
+    }
+});
+
+admin.put('/_admin/files/multipart/part', async c => {
+    const uploadId = c.req.query('uploadId') ?? '';
+    const key = c.req.query('key') ?? '';
+    const partRaw = Number(c.req.query('part'));
+    if (!uploadId || !key || !Number.isFinite(partRaw) || partRaw < 1) {
+        return c.json({ error: 'missing uploadId/key/part' }, 400);
+    }
+    if (!c.req.raw.body) return c.json({ error: 'no body' }, 400);
+    try {
+        const part = await uploadPart(
+            c.env.BUCKET,
+            key,
+            uploadId,
+            partRaw,
+            c.req.raw.body,
+        );
+        return c.json(part);
+    } catch (err) {
+        log({
+            event: 'admin.files.multipart.part_fail',
+            key,
+            part: partRaw,
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return c.json(
+            { error: err instanceof Error ? err.message : 'part failed' },
+            400,
+        );
+    }
+});
+
+admin.post('/_admin/files/multipart/complete', async c => {
+    let body: { uploadId?: unknown; key?: unknown; parts?: unknown };
+    try {
+        body = await c.req.json();
+    } catch {
+        return toastError(c, 'Invalid request body.', 400);
+    }
+    const uploadId = typeof body.uploadId === 'string' ? body.uploadId : '';
+    const key = typeof body.key === 'string' ? body.key : '';
+    const parts = sanitizeParts(body.parts);
+    if (!uploadId || !key || parts.length === 0) {
+        return toastError(c, 'Invalid complete request.', 400);
+    }
+    try {
+        await completeMultipart(c.env.BUCKET, key, uploadId, parts);
+    } catch (err) {
+        log({
+            event: 'admin.files.multipart.complete_fail',
+            key,
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return toastError(
+            c,
+            err instanceof Error ? err.message : 'Upload failed.',
+            400,
+        );
+    }
+    log({ event: 'admin.files.multipart.complete', key, parts: parts.length });
+    const prefix = parentOf(key);
+    const props = await buildFileListProps(c.env.BUCKET, prefix, undefined, '');
+    return c.html(
+        withToast(<FileList {...props} />, 'success', `Uploaded ${key}.`),
+    );
+});
+
+admin.post('/_admin/files/multipart/abort', async c => {
+    let body: { uploadId?: unknown; key?: unknown };
+    try {
+        body = await c.req.json();
+    } catch {
+        return c.json({ error: 'invalid body' }, 400);
+    }
+    const uploadId = typeof body.uploadId === 'string' ? body.uploadId : '';
+    const key = typeof body.key === 'string' ? body.key : '';
+    if (!uploadId || !key) return c.json({ error: 'missing fields' }, 400);
+    try {
+        await abortMultipart(c.env.BUCKET, key, uploadId);
+        log({ event: 'admin.files.multipart.abort', key });
+    } catch (err) {
+        log({
+            event: 'admin.files.multipart.abort_fail',
+            key,
+            error: err instanceof Error ? err.message : String(err),
+        });
+    }
+    return c.body(null, 204);
+});
+
+function sanitizeParts(input: unknown): UploadedPart[] {
+    if (!Array.isArray(input)) return [];
+    const out: UploadedPart[] = [];
+    for (const p of input) {
+        if (
+            p &&
+            typeof p === 'object' &&
+            typeof (p as { partNumber?: unknown }).partNumber === 'number' &&
+            typeof (p as { etag?: unknown }).etag === 'string'
+        ) {
+            out.push({
+                partNumber: (p as { partNumber: number }).partNumber,
+                etag: (p as { etag: string }).etag,
+            });
+        }
+    }
+    return out;
+}
+
+// ---------- rename ----------
+
+admin.get('/_admin/files/object/row', async c => {
+    const key = c.req.query('key') ?? '';
+    if (!key || key.includes('..')) return toastError(c, 'Invalid key.', 400);
+    const head = await c.env.BUCKET.head(key);
+    if (!head) return toastError(c, 'File not found.', 404);
+    const prefix = parentOf(key);
+    const name = key.slice(prefix.length);
+    return c.html(
+        <FileRowStatic
+            entry={{ kind: 'file', name, key, size: head.size }}
+            prefix={prefix}
+        />,
+    );
+});
+
+admin.get('/_admin/files/object/edit', async c => {
+    const key = c.req.query('key') ?? '';
+    if (!key || key.includes('..')) return toastError(c, 'Invalid key.', 400);
+    const head = await c.env.BUCKET.head(key);
+    if (!head) return toastError(c, 'File not found.', 404);
+    const prefix = parentOf(key);
+    const name = key.slice(prefix.length);
+    return c.html(
+        <FileRowEdit
+            name={name}
+            objectKey={key}
+            prefix={prefix}
+        />,
+    );
+});
+
+admin.get('/_admin/files/folder/row', async c => {
+    const raw = c.req.query('prefix') ?? '';
     let prefix: string;
     try {
-        prefix = parsePrefix(String(form.get('prefix') ?? ''));
+        prefix = parsePrefix(raw);
     } catch {
-        return toastError(c, 'Invalid target folder.', 400);
+        return toastError(c, 'Invalid folder.', 400);
     }
-    const raw = form.getAll('files');
-    const files: File[] = [];
-    for (const v of raw) {
-        if (typeof v !== 'string') files.push(v);
-    }
-    if (files.length === 0) return toastError(c, 'No files selected.', 400);
+    if (!prefix) return toastError(c, 'Invalid folder.', 400);
+    const parent = parentOf(prefix.replace(/\/+$/, ''));
+    const name = prefix.slice(parent.length).replace(/\/+$/, '');
+    return c.html(
+        <FolderRowStatic
+            entry={{ kind: 'folder', name, key: prefix }}
+            prefix={parent}
+        />,
+    );
+});
 
-    let ok = 0;
-    let overwritten = 0;
-    const tooLarge: string[] = [];
-    const failed: string[] = [];
-    for (const f of files) {
-        const r = await uploadFile(c.env.BUCKET, prefix, f);
-        if (r.status === 'ok') ok += 1;
-        else if (r.status === 'overwritten') {
-            ok += 1;
-            overwritten += 1;
-        } else if (r.status === 'too_large') tooLarge.push(r.name);
-        else failed.push(r.name);
+admin.get('/_admin/files/folder/edit', async c => {
+    const raw = c.req.query('prefix') ?? '';
+    let prefix: string;
+    try {
+        prefix = parsePrefix(raw);
+    } catch {
+        return toastError(c, 'Invalid folder.', 400);
+    }
+    if (!prefix) return toastError(c, 'Invalid folder.', 400);
+    const parent = parentOf(prefix.replace(/\/+$/, ''));
+    const name = prefix.slice(parent.length).replace(/\/+$/, '');
+    return c.html(
+        <FolderRowEdit
+            name={name}
+            prefix={prefix}
+            parent={parent}
+        />,
+    );
+});
+
+admin.patch('/_admin/files/object', async c => {
+    const form = await c.req.formData();
+    const key = String(form.get('key') ?? '');
+    const newName = String(form.get('newName') ?? '');
+    if (!key || key.includes('..')) return toastError(c, 'Invalid key.', 400);
+    let result: { newKey: string };
+    try {
+        result = await renameFile(c.env.BUCKET, key, newName);
+    } catch (err) {
+        return toastError(
+            c,
+            err instanceof Error ? err.message : 'Rename failed.',
+            400,
+        );
+    }
+    log({ event: 'admin.files.object.rename', from: key, to: result.newKey });
+    const prefix = parentOf(key);
+    const props = await buildFileListProps(c.env.BUCKET, prefix, undefined, '');
+    return c.html(
+        withToast(<FileList {...props} />, 'success', `Renamed to ${newName}.`),
+    );
+});
+
+admin.patch('/_admin/files/folder', async c => {
+    const form = await c.req.formData();
+    const raw = String(form.get('prefix') ?? '');
+    const newName = String(form.get('newName') ?? '');
+    let prefix: string;
+    try {
+        prefix = parsePrefix(raw);
+    } catch {
+        return toastError(c, 'Invalid folder.', 400);
+    }
+    if (!prefix) return toastError(c, 'Invalid folder.', 400);
+    let result: { renamed: number; newPrefix: string };
+    try {
+        result = await renameFolder(c.env.BUCKET, prefix, newName);
+    } catch (err) {
+        return toastError(
+            c,
+            err instanceof Error ? err.message : 'Rename failed.',
+            400,
+        );
     }
     log({
-        event: 'admin.files.upload',
-        prefix,
-        ok,
-        overwritten,
-        tooLarge: tooLarge.length,
-        failed: failed.length,
+        event: 'admin.files.folder.rename',
+        from: prefix,
+        to: result.newPrefix,
+        renamed: result.renamed,
     });
-    const props = await buildFileListProps(c.env.BUCKET, prefix, undefined, '');
-    const parts: string[] = [];
-    parts.push(`Uploaded ${ok}`);
-    if (overwritten > 0) parts.push(`${overwritten} overwritten`);
-    if (tooLarge.length > 0)
-        parts.push(`${tooLarge.length} too large: ${tooLarge.join(', ')}`);
-    if (failed.length > 0)
-        parts.push(`${failed.length} failed: ${failed.join(', ')}`);
-    const msg = parts.join(' · ');
-    const level =
-        failed.length > 0 || tooLarge.length > 0 ? 'error' : 'success';
-    return c.html(withToast(<FileList {...props} />, level, msg));
+    const parent = parentOf(prefix.replace(/\/+$/, ''));
+    const props = await buildFileListProps(c.env.BUCKET, parent, undefined, '');
+    return c.html(
+        withToast(
+            <FileList {...props} />,
+            'success',
+            `Renamed ${result.renamed} item${result.renamed === 1 ? '' : 's'} to ${newName}/.`,
+        ),
+    );
 });
 
 admin.delete('/_admin/files/object', async c => {
@@ -551,13 +788,6 @@ admin.delete('/_admin/files/folder', async c => {
     const level = result.truncated ? 'error' : 'success';
     return c.html(withToast(<FileList {...props} />, level, msg));
 });
-
-function parentOf(keyOrPrefix: string): string {
-    const trimmed = keyOrPrefix.replace(/\/+$/, '');
-    const slash = trimmed.lastIndexOf('/');
-    if (slash < 0) return '';
-    return trimmed.slice(0, slash + 1);
-}
 
 admin.all('*', c => c.text('not found', 404));
 

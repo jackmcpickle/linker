@@ -1,0 +1,22 @@
+{
+    "$schema": "node_modules/wrangler/config-schema.json",
+    "name": "linker-test",
+    "main": "src/index.ts",
+    "compatibility_date": "2025-05-01",
+    "compatibility_flags": ["nodejs_compat"],
+    "r2_buckets": [
+        { "binding": "BUCKET", "bucket_name": "test-content" },
+    ],
+    "kv_namespaces": [
+        { "binding": "LINKS", "id": "test-links" },
+        { "binding": "THROTTLE", "id": "test-throttle" },
+    ],
+    "vars": {
+        "SHARE_DOMAIN": "example.test",
+        "ADMIN_HOST": "admin.example.test",
+        "TURNSTILE_SITE_KEY": "test",
+        "ADMIN_PASSWORD": "test-password",
+        "COOKIE_HMAC_SECRET": "test-hmac-secret-32-bytes-min!!",
+        "TURNSTILE_SECRET_KEY": "test",
+    },
+}

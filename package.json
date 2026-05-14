@@ -13,13 +13,16 @@
         "fmt": "oxfmt",
         "fmt:check": "oxfmt --check",
         "deploy": "pnpm build && wrangler deploy",
-        "cf-typegen": "wrangler types"
+        "cf-typegen": "wrangler types",
+        "test": "vitest run",
+        "test:watch": "vitest"
     },
     "dependencies": {
         "hono": "^4.12.18",
         "nanoid": "^5.1.11"
     },
     "devDependencies": {
+        "@cloudflare/vitest-pool-workers": "^0.8.0",
         "@cloudflare/workers-types": "^4.20260507.1",
         "@tailwindcss/cli": "^4.2.4",
         "concurrently": "^9.2.1",
@@ -28,6 +31,7 @@
         "oxlint-tsgolint": "^0.22.1",
         "tailwindcss": "^4.2.4",
         "typescript": "^6.0.3",
+        "vitest": "~3.0.0",
         "wrangler": "^4.88.0"
     }
 }

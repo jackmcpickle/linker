@@ -15,7 +15,10 @@
         "esModuleInterop": true,
         "jsx": "react-jsx",
         "jsxImportSource": "hono/jsx",
-        "types": ["@cloudflare/workers-types"]
+        "types": [
+            "@cloudflare/workers-types",
+            "@cloudflare/vitest-pool-workers"
+        ]
     },
     "include": ["src/**/*", "worker-configuration.d.ts"]
 }

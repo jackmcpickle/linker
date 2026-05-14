@@ -7,8 +7,16 @@
 export const KEEP_FILE = '.keep';
 export const PAGE_LIMIT = 50;
 export const DELETE_CAP = 1000;
-export const MAX_UPLOAD_BYTES = 95_000_000; // ~95MB; under Worker request cap
 export const PREV_STACK_CAP = 50;
+
+// Uploads are chunked via R2 multipart so single-request body limits don't
+// gate file size. 25MB chunk: under the ~95MB Worker request cap, above the
+// R2 5MB minimum part size.
+export const CHUNK_SIZE = 25 * 1024 * 1024;
+
+// Folder rename refuses if the folder contains more than this many keys —
+// keeps a rename request bounded to a single Worker invocation.
+export const RENAME_FOLDER_CAP = DELETE_CAP;
 
 export type ListedEntry =
     | { kind: 'folder'; name: string; key: string }
@@ -64,6 +72,14 @@ export function validateName(name: string): string {
     if (n === '.' || n === '..') throw new Error('invalid name');
     if (hasInvalidNameChar(n)) throw new Error('invalid name');
     return n;
+}
+
+/** Parent prefix of a key or folder prefix. Returns "" for root. */
+export function parentOf(keyOrPrefix: string): string {
+    const trimmed = keyOrPrefix.replace(/\/+$/, '');
+    const slash = trimmed.lastIndexOf('/');
+    if (slash < 0) return '';
+    return trimmed.slice(0, slash + 1);
 }
 
 /** List one page at `prefix` with delimiter='/'. */
@@ -125,44 +141,239 @@ export async function createFolder(
     return folderPrefix;
 }
 
-export type UploadOutcome = {
-    name: string;
-    status: 'ok' | 'overwritten' | 'too_large' | 'failed';
-    bytes?: number;
-    error?: string;
+// ---------- multipart upload ----------
+
+export type InitMultipartResult = {
+    /** null when the file was 0 bytes — already written, no parts to send. */
+    uploadId: string | null;
+    key: string;
+    partSize: number;
+    overwriting: boolean;
 };
 
-/** Upload a single file under `prefix`. Pre-checks for overwrite via head. */
-export async function uploadFile(
+export type UploadedPart = { partNumber: number; etag: string };
+
+/**
+ * Begin (or short-circuit) a multipart upload.
+ * Zero-byte files bypass multipart since R2 multipart needs ≥1 part.
+ */
+export async function initMultipart(
     bucket: R2Bucket,
     prefix: string,
-    file: File,
-): Promise<UploadOutcome> {
-    const name = validateName(file.name);
-    if (file.size > MAX_UPLOAD_BYTES) {
-        return { name, status: 'too_large', bytes: file.size };
-    }
-    const key = `${prefix}${name}`;
+    name: string,
+    size: number,
+    contentType: string,
+): Promise<InitMultipartResult> {
+    const p = parsePrefix(prefix);
+    const n = validateName(name);
+    const key = `${p}${n}`;
     const existing = await bucket.head(key);
-    try {
-        await bucket.put(key, file.stream(), {
+    const overwriting = existing !== null;
+
+    if (size === 0) {
+        await bucket.put(key, new Uint8Array(0), {
             httpMetadata: {
-                contentType: file.type || 'application/octet-stream',
+                contentType: contentType || 'application/octet-stream',
             },
         });
-    } catch (err) {
-        return {
-            name,
-            status: 'failed',
-            error: err instanceof Error ? err.message : String(err),
-        };
+        return { uploadId: null, key, partSize: CHUNK_SIZE, overwriting };
     }
+
+    const mpu = await bucket.createMultipartUpload(key, {
+        httpMetadata: {
+            contentType: contentType || 'application/octet-stream',
+        },
+    });
     return {
-        name,
-        status: existing ? 'overwritten' : 'ok',
-        bytes: file.size,
+        uploadId: mpu.uploadId,
+        key,
+        partSize: CHUNK_SIZE,
+        overwriting,
     };
 }
+
+/** Upload one part. partNumber must be 1-based. */
+export async function uploadPart(
+    bucket: R2Bucket,
+    key: string,
+    uploadId: string,
+    partNumber: number,
+    body: ReadableStream | ArrayBuffer | ArrayBufferView | Blob | string,
+): Promise<UploadedPart> {
+    const mpu = bucket.resumeMultipartUpload(key, uploadId);
+    const part = await mpu.uploadPart(partNumber, body);
+    return { partNumber: part.partNumber, etag: part.etag };
+}
+
+/** Finalize the upload. Sorts parts defensively. */
+export async function completeMultipart(
+    bucket: R2Bucket,
+    key: string,
+    uploadId: string,
+    parts: UploadedPart[],
+): Promise<void> {
+    const sorted = [...parts].sort((a, b) => a.partNumber - b.partNumber);
+    const mpu = bucket.resumeMultipartUpload(key, uploadId);
+    await mpu.complete(sorted);
+}
+
+export async function abortMultipart(
+    bucket: R2Bucket,
+    key: string,
+    uploadId: string,
+): Promise<void> {
+    const mpu = bucket.resumeMultipartUpload(key, uploadId);
+    await mpu.abort();
+}
+
+// ---------- rename ----------
+
+/**
+ * Internal: copy `srcKey` to `dstKey` using R2 multipart, reading the source
+ * in CHUNK_SIZE ranges. Used when the source is too large to stream-put in one
+ * Worker invocation. Preserves httpMetadata only.
+ */
+async function multipartCopy(
+    bucket: R2Bucket,
+    srcKey: string,
+    dstKey: string,
+    size: number,
+    httpMetadata: R2HTTPMetadata | undefined,
+): Promise<void> {
+    const mpu = await bucket.createMultipartUpload(dstKey, { httpMetadata });
+    const parts: R2UploadedPart[] = [];
+    try {
+        let partNumber = 1;
+        for (let offset = 0; offset < size; offset += CHUNK_SIZE) {
+            const length = Math.min(CHUNK_SIZE, size - offset);
+            const chunk = await bucket.get(srcKey, {
+                range: { offset, length },
+            });
+            if (!chunk) throw new Error('source disappeared mid-copy');
+            const part = await mpu.uploadPart(partNumber, chunk.body);
+            parts.push(part);
+            partNumber += 1;
+        }
+        await mpu.complete(parts);
+    } catch (err) {
+        try {
+            await mpu.abort();
+        } catch {
+            // swallow abort failures — the original error is what matters.
+        }
+        throw err;
+    }
+}
+
+/** Copy `srcKey` to `dstKey`. Size-aware: stream-put if small, multipart-copy otherwise. */
+async function copyObject(
+    bucket: R2Bucket,
+    srcKey: string,
+    dstKey: string,
+): Promise<void> {
+    const src = await bucket.get(srcKey);
+    if (!src) throw new Error('source not found');
+    if (src.size <= CHUNK_SIZE) {
+        await bucket.put(dstKey, src.body, {
+            httpMetadata: src.httpMetadata,
+        });
+        return;
+    }
+    await multipartCopy(bucket, srcKey, dstKey, src.size, src.httpMetadata);
+}
+
+export type RenameFileResult = { newKey: string };
+
+/** Rename a single object. Refuses if target exists. Preserves httpMetadata. */
+export async function renameFile(
+    bucket: R2Bucket,
+    oldKey: string,
+    newName: string,
+): Promise<RenameFileResult> {
+    const n = validateName(newName);
+    const newKey = `${parentOf(oldKey)}${n}`;
+    if (newKey === oldKey) throw new Error('name unchanged');
+    const collision = await bucket.head(newKey);
+    if (collision) throw new Error('a file with that name already exists');
+    await copyObject(bucket, oldKey, newKey);
+    await bucket.delete(oldKey);
+    return { newKey };
+}
+
+export type RenameFolderResult = { renamed: number; newPrefix: string };
+
+/**
+ * Rename a folder by copying every key under `oldPrefix` to a new prefix
+ * derived from `newName`, then deleting the source keys. Pre-counts keys and
+ * refuses if > RENAME_FOLDER_CAP, so we never start a partial rename.
+ *
+ * On a per-copy failure we best-effort delete the destination keys we've
+ * already written and rethrow. The source is left intact in that case.
+ */
+export async function renameFolder(
+    bucket: R2Bucket,
+    oldPrefix: string,
+    newName: string,
+): Promise<RenameFolderResult> {
+    const src = parsePrefix(oldPrefix);
+    if (!src) throw new Error('refusing to rename root');
+    const n = validateName(newName);
+    const parent = parentOf(src.replace(/\/+$/, ''));
+    const newPrefix = `${parent}${n}/`;
+    if (newPrefix === src) throw new Error('name unchanged');
+
+    const collision = await bucket.list({ prefix: newPrefix, limit: 1 });
+    if (collision.objects.length > 0) {
+        throw new Error('a folder with that name already exists');
+    }
+
+    // Pre-flight: collect keys, bail if over the cap before any mutation.
+    const keys: string[] = [];
+    let cursor: string | undefined;
+    do {
+        const page: R2Objects = await bucket.list({
+            prefix: src,
+            limit: 1000,
+            cursor,
+        });
+        for (const o of page.objects) keys.push(o.key);
+        if (keys.length > RENAME_FOLDER_CAP) {
+            throw new Error(
+                `folder too large to rename — limit ${RENAME_FOLDER_CAP} items`,
+            );
+        }
+        cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor);
+
+    const written: string[] = [];
+    try {
+        for (const oldKey of keys) {
+            const dstKey = `${newPrefix}${oldKey.slice(src.length)}`;
+            await copyObject(bucket, oldKey, dstKey);
+            written.push(dstKey);
+        }
+    } catch (err) {
+        // Best-effort rollback. If this itself fails, the user is told about
+        // possible duplicates via the toast — we don't retry.
+        if (written.length > 0) {
+            try {
+                for (let i = 0; i < written.length; i += 1000) {
+                    await bucket.delete(written.slice(i, i + 1000));
+                }
+            } catch {
+                // intentionally swallowed; surfaced via caller's toast text
+            }
+        }
+        throw err;
+    }
+
+    for (let i = 0; i < keys.length; i += 1000) {
+        await bucket.delete(keys.slice(i, i + 1000));
+    }
+    return { renamed: keys.length, newPrefix };
+}
+
+// ---------- delete (existing) ----------
 
 export type DeleteResult = {
     deleted: number;
@@ -196,11 +407,9 @@ export async function deletePrefix(
         }
     }
     if (collected.length === 0) return { deleted: 0, truncated };
-    // R2 batch delete supports up to 1000 keys per call.
     for (let i = 0; i < collected.length; i += 1000) {
         await bucket.delete(collected.slice(i, i + 1000));
     }
-    // Re-check whether anything remains beyond the cap.
     if (truncated) {
         const probe = await bucket.list({ prefix, limit: 1 });
         if (!probe.objects.length) truncated = false;
@@ -208,7 +417,8 @@ export async function deletePrefix(
     return { deleted: collected.length, truncated };
 }
 
-/** Cursor stack — encoded as base64url JSON array in URL `prev` param. */
+// ---------- cursor stack (existing) ----------
+
 export function pushCursor(prev: string, cursor: string): string {
     const stack = decodePrev(prev);
     stack.push(cursor);

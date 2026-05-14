@@ -1,6 +1,10 @@
 import type { FC } from 'hono/jsx';
 import type { ListedEntry } from '../files';
 import { Spinner } from './components/spinner';
+import { listUrl } from './file-list-url';
+import { FileRowStatic, FolderRowStatic } from './file-row-edit';
+
+export { listUrl };
 
 type Crumb = { label: string; prefix: string };
 
@@ -34,19 +38,6 @@ function buildCrumbs(prefix: string): Crumb[] {
         out.push({ label: part, prefix: acc });
     }
     return out;
-}
-
-export function listUrl(
-    prefix: string,
-    cursor?: string,
-    prev?: string,
-): string {
-    const qp = new URLSearchParams();
-    if (prefix) qp.set('prefix', prefix);
-    if (cursor) qp.set('cursor', cursor);
-    if (prev) qp.set('prev', prev);
-    const s = qp.toString();
-    return s ? `/_admin/files?${s}` : '/_admin/files';
 }
 
 export const FileList: FC<Props> = ({
@@ -120,12 +111,19 @@ export const FileList: FC<Props> = ({
                 ) : (
                     <table class="w-full text-sm">
                         <tbody>
-                            {entries.map(e => (
-                                <Row
-                                    entry={e}
-                                    prefix={prefix}
-                                />
-                            ))}
+                            {entries.map(e =>
+                                e.kind === 'folder' ? (
+                                    <FolderRowStatic
+                                        entry={e}
+                                        prefix={prefix}
+                                    />
+                                ) : (
+                                    <FileRowStatic
+                                        entry={e}
+                                        prefix={prefix}
+                                    />
+                                ),
+                            )}
                         </tbody>
                     </table>
                 )}
@@ -145,96 +143,6 @@ export const FileList: FC<Props> = ({
                 </footer>
             </div>
         </div>
-    );
-};
-
-const Row: FC<{ entry: ListedEntry; prefix: string }> = ({ entry, prefix }) => {
-    if (entry.kind === 'folder') {
-        const childPrefix = `${prefix}${entry.name}/`;
-        return (
-            <tr
-                class="border-b border-zinc-50 last:border-b-0 hover:bg-zinc-50"
-                data-name={entry.name.toLowerCase()}
-            >
-                <td class="w-6 px-4 py-2 text-zinc-400">▸</td>
-                <td class="px-2 py-2 font-mono">
-                    <a
-                        href={listUrl(childPrefix)}
-                        class="hover:underline"
-                    >
-                        {entry.name}/
-                    </a>
-                </td>
-                <td class="px-2 py-2 text-right text-xs text-zinc-400">
-                    folder
-                </td>
-                <td class="px-4 py-2 text-right">
-                    <div class="inline-flex items-center gap-1.5">
-                        <a
-                            href={`/_admin?prefix=${encodeURIComponent(
-                                childPrefix,
-                            )}#create-form`}
-                            class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-0.5 text-xs text-zinc-500 hover:border-zinc-900 hover:text-zinc-900"
-                            title="Create share link for this folder"
-                        >
-                            + link
-                        </a>
-                        <button
-                            type="button"
-                            class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-0.5 text-xs text-zinc-500 hover:border-red-200 hover:text-red-700"
-                            hx-delete={`/_admin/files/folder?prefix=${encodeURIComponent(
-                                childPrefix,
-                            )}`}
-                            hx-target="#file-content"
-                            hx-swap="outerHTML"
-                            hx-confirm={`Recursively delete ${childPrefix} and everything under it?`}
-                        >
-                            <Spinner class="h-3 w-3" />
-                            delete
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        );
-    }
-
-    return (
-        <tr
-            class="border-b border-zinc-50 last:border-b-0 hover:bg-zinc-50"
-            data-name={entry.name.toLowerCase()}
-        >
-            <td class="w-6 px-4 py-2 text-zinc-400">·</td>
-            <td class="px-2 py-2 font-mono break-all">{entry.name}</td>
-            <td class="px-2 py-2 text-right text-xs text-zinc-400">
-                {fmtSize(entry.size)}
-            </td>
-            <td class="px-4 py-2 text-right">
-                <div class="inline-flex items-center gap-1.5">
-                    <a
-                        href={`/_admin?prefix=${encodeURIComponent(
-                            entry.key,
-                        )}#create-form`}
-                        class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-0.5 text-xs text-zinc-500 hover:border-zinc-900 hover:text-zinc-900"
-                        title="Create share link for this file"
-                    >
-                        + link
-                    </a>
-                    <button
-                        type="button"
-                        class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-0.5 text-xs text-zinc-500 hover:border-red-200 hover:text-red-700"
-                        hx-delete={`/_admin/files/object?key=${encodeURIComponent(
-                            entry.key,
-                        )}`}
-                        hx-target="#file-content"
-                        hx-swap="outerHTML"
-                        hx-confirm={`Delete ${entry.name}?`}
-                    >
-                        <Spinner class="h-3 w-3" />
-                        delete
-                    </button>
-                </div>
-            </td>
-        </tr>
     );
 };
 
@@ -276,25 +184,16 @@ const CreateFolderForm: FC<{ parent: string }> = ({ parent }) => (
 const UploadDropzone: FC<{ prefix: string }> = ({ prefix }) => (
     <form
         id="upload-form"
-        hx-post="/_admin/files/upload"
-        hx-encoding="multipart/form-data"
-        hx-target="#file-content"
-        hx-swap="outerHTML"
-        hx-on--after-request="if(event.detail.successful) this.reset()"
         class="mb-3"
         data-dropzone
+        data-prefix={prefix}
     >
-        <input
-            type="hidden"
-            name="prefix"
-            value={prefix}
-        />
         <label class="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-zinc-300 bg-white px-4 py-8 text-center transition hover:border-zinc-900 hover:bg-zinc-50">
             <span class="text-sm font-medium text-zinc-900">
                 Drop files here or click to browse
             </span>
             <span class="text-xs text-zinc-500">
-                Upload to {prefix || 'root'} · max ~95MB per file
+                Upload to {prefix || 'root'}
             </span>
             <input
                 type="file"
@@ -302,7 +201,7 @@ const UploadDropzone: FC<{ prefix: string }> = ({ prefix }) => (
                 multiple
                 required
                 class="sr-only"
-                onchange="if(this.files.length){window.htmx?window.htmx.trigger(this.form,'submit'):this.form.requestSubmit()}"
+                data-dropzone-input
             />
             <Spinner class="mt-1 h-4 w-4 text-zinc-500" />
         </label>
@@ -312,6 +211,10 @@ const UploadDropzone: FC<{ prefix: string }> = ({ prefix }) => (
             value="0"
             max="100"
         ></progress>
+        <div
+            data-upload-status
+            class="mt-1 hidden text-xs text-zinc-500"
+        ></div>
     </form>
 );
 
