@@ -167,66 +167,91 @@ export const LinkRow: FC<Props> = ({ pair, shareDomain, mode = 'view' }) => {
                 )}
             </td>
             <td class="px-4 py-3">
-                <div class="flex flex-wrap items-center gap-1.5">
-                    {s !== 'revoked' ? (
-                        <details class="group relative">
-                            <summary class="cursor-pointer list-none rounded border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50">
-                                extend
-                            </summary>
-                            <div class="absolute right-0 z-10 mt-1 flex flex-wrap gap-1 rounded-md border border-zinc-200 bg-white p-2 shadow-md">
-                                {EXPIRY_PRESETS.map(p => (
-                                    <button
-                                        type="button"
-                                        class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-100"
-                                        hx-post={`/_admin/links/${canonical.token}/extend`}
-                                        hx-vals={JSON.stringify({
-                                            preset: p.id,
-                                        })}
-                                        hx-target={`#link-${canonical.token}`}
-                                        hx-swap="outerHTML"
-                                    >
-                                        <Spinner class="h-3 w-3" />
-                                        {p.id}
-                                    </button>
-                                ))}
-                            </div>
-                        </details>
-                    ) : null}
-                    <button
-                        type="button"
-                        class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50"
-                        hx-get={`/_admin/links/${canonical.token}/edit`}
-                        hx-target={`#link-${canonical.token}`}
-                        hx-swap="outerHTML"
+                <details class="row-actions group relative">
+                    <summary class="row-actions-trigger cursor-pointer list-none rounded border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50">
+                        ⋯
+                    </summary>
+                    <span
+                        class="row-actions-busy inline-block rounded border border-zinc-200 px-2 py-1"
+                        aria-hidden="true"
                     >
                         <Spinner class="h-3 w-3" />
-                        edit
-                    </button>
-                    {s !== 'revoked' ? (
+                    </span>
+                    <div class="absolute right-0 z-10 mt-1 flex w-56 flex-col gap-1 rounded-md border border-zinc-200 bg-white p-2 shadow-md">
+                        <a
+                            href={`/_admin/links/${canonical.token}/qr`}
+                            class="block rounded px-2 py-1 text-xs hover:bg-zinc-100"
+                        >
+                            QR code (browse)
+                        </a>
+                        {pair.download ? (
+                            <a
+                                href={`/_admin/links/${pair.download.token}/qr`}
+                                class="block rounded px-2 py-1 text-xs hover:bg-zinc-100"
+                            >
+                                QR code (download)
+                            </a>
+                        ) : null}
                         <button
                             type="button"
-                            class="inline-flex items-center gap-1 rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
-                            hx-post={`/_admin/links/${canonical.token}/revoke`}
+                            class="inline-flex items-center gap-1 rounded px-2 py-1 text-left text-xs hover:bg-zinc-100"
+                            hx-get={`/_admin/links/${canonical.token}/edit`}
                             hx-target={`#link-${canonical.token}`}
                             hx-swap="outerHTML"
-                            hx-confirm="Revoke this link? Recipients will see the expired page immediately."
                         >
                             <Spinner class="h-3 w-3" />
-                            revoke
+                            edit
                         </button>
-                    ) : null}
-                    <button
-                        type="button"
-                        class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-500 hover:text-red-700"
-                        hx-delete={`/_admin/links/${canonical.token}`}
-                        hx-target={`#link-${canonical.token}`}
-                        hx-swap="outerHTML"
-                        hx-confirm="Permanently delete this share record?"
-                    >
-                        <Spinner class="h-3 w-3" />
-                        delete
-                    </button>
-                </div>
+                        {s !== 'revoked' ? (
+                            <div class="border-t border-zinc-100 pt-1">
+                                <div class="px-2 pb-1 text-[10px] tracking-wider text-zinc-500 uppercase">
+                                    extend
+                                </div>
+                                <div class="flex flex-wrap gap-1 px-1">
+                                    {EXPIRY_PRESETS.map(p => (
+                                        <button
+                                            type="button"
+                                            class="inline-flex items-center gap-1 rounded border border-zinc-200 px-1.5 py-0.5 text-[11px] hover:bg-zinc-100"
+                                            hx-post={`/_admin/links/${canonical.token}/extend`}
+                                            hx-vals={JSON.stringify({
+                                                preset: p.id,
+                                            })}
+                                            hx-target={`#link-${canonical.token}`}
+                                            hx-swap="outerHTML"
+                                        >
+                                            <Spinner class="h-3 w-3" />
+                                            {p.id}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
+                        {s !== 'revoked' ? (
+                            <button
+                                type="button"
+                                class="mt-1 inline-flex items-center gap-1 rounded border-t border-zinc-100 px-2 py-1 pt-2 text-left text-xs text-red-700 hover:bg-red-50"
+                                hx-post={`/_admin/links/${canonical.token}/revoke`}
+                                hx-target={`#link-${canonical.token}`}
+                                hx-swap="outerHTML"
+                                hx-confirm="Revoke this link? Recipients will see the expired page immediately."
+                            >
+                                <Spinner class="h-3 w-3" />
+                                revoke
+                            </button>
+                        ) : null}
+                        <button
+                            type="button"
+                            class="inline-flex items-center gap-1 rounded px-2 py-1 text-left text-xs text-zinc-500 hover:bg-red-50 hover:text-red-700"
+                            hx-delete={`/_admin/links/${canonical.token}`}
+                            hx-target={`#link-${canonical.token}`}
+                            hx-swap="outerHTML"
+                            hx-confirm="Permanently delete this share record?"
+                        >
+                            <Spinner class="h-3 w-3" />
+                            delete
+                        </button>
+                    </div>
+                </details>
             </td>
         </tr>
     );

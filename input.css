@@ -32,6 +32,18 @@ button.htmx-request {
     opacity: 0.7;
 }
 
+/* Row-action dropdown: swap ... trigger for spinner while any HTMX
+   request inside the dropdown is in flight. */
+.row-actions > .row-actions-busy {
+    display: none;
+}
+.row-actions:has(.htmx-request) > .row-actions-trigger {
+    display: none;
+}
+.row-actions:has(.htmx-request) > .row-actions-busy {
+    display: inline-block;
+}
+
 /* Toasts */
 .toast {
     animation: toast-in 160ms ease-out;

@@ -1,8 +1,10 @@
 import { Hono } from 'hono';
+import QRCode from 'qrcode';
 import type { Env, ShareLink } from '../types';
 import { LoginPage } from './views/login';
 import { DashboardPage, LinkList } from './views/dashboard';
 import { LinkRow } from './views/link-row';
+import { LinkQrPage } from './views/link-qr';
 import {
     clearSessionCookie,
     clientIp,
@@ -280,6 +282,44 @@ admin.get('/_admin/links/:token', async c => {
             shareDomain={c.env.SHARE_DOMAIN}
         />,
     );
+});
+
+// QR code page (HTML)
+admin.get('/_admin/links/:token/qr', async c => {
+    const token = c.req.param('token');
+    if (!isValidToken(token)) return toastError(c, 'Link not found.', 404);
+    const link = await getLink(c.env.LINKS, token);
+    if (!link) return toastError(c, 'Link not found.', 404);
+    const shareUrl = `https://${link.token}.${c.env.SHARE_DOMAIN}/`;
+    const svgUrl = `/_admin/links/${link.token}/qr.svg`;
+    return c.html(
+        <LinkQrPage
+            link={link}
+            shareDomain={c.env.SHARE_DOMAIN}
+            shareUrl={shareUrl}
+            svgUrl={svgUrl}
+            downloadName={qrFilename(link)}
+        />,
+    );
+});
+
+// QR code raw SVG
+admin.get('/_admin/links/:token/qr.svg', async c => {
+    const token = c.req.param('token');
+    if (!isValidToken(token)) return c.notFound();
+    const link = await getLink(c.env.LINKS, token);
+    if (!link) return c.notFound();
+    const shareUrl = `https://${link.token}.${c.env.SHARE_DOMAIN}/`;
+    const svg = await QRCode.toString(shareUrl, {
+        type: 'svg',
+        errorCorrectionLevel: 'M',
+        margin: 1,
+    });
+    return c.body(svg, 200, {
+        'Content-Type': 'image/svg+xml; charset=utf-8',
+        'Cache-Control': 'private, no-store',
+        'Content-Disposition': `inline; filename="${qrFilename(link)}"`,
+    });
 });
 
 // edit form (inline)
@@ -958,6 +998,15 @@ admin.all('*', c => c.text('not found', 404));
 
 function normalizePrefix(input: string): string {
     return input.trim().replace(/^\/+/, '');
+}
+
+function qrFilename(link: ShareLink): string {
+    const slug = (link.name ?? '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 40);
+    return slug ? `qr-${link.token}-${slug}.svg` : `qr-${link.token}.svg`;
 }
 
 function constantTimeEqual(a: string, b: string): boolean {
