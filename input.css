@@ -43,6 +43,9 @@ button.htmx-request {
 .row-actions:has(.htmx-request) > .row-actions-busy {
     display: inline-block;
 }
+.row-actions:has(.htmx-request) > .row-actions-busy .htmx-spinner {
+    display: inline-block;
+}
 
 /* Toasts */
 .toast {
