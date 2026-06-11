@@ -60,6 +60,7 @@ import {
     validateName,
     type UploadedPart,
 } from './files';
+import { field } from '../lib/form';
 
 const admin = new Hono<Env>();
 
@@ -113,8 +114,8 @@ admin.post('/_admin/login', async c => {
     }
 
     const form = await c.req.formData();
-    const password = String(form.get('password') ?? '');
-    const tsToken = String(form.get('cf-turnstile-response') ?? '');
+    const password = field(form, 'password');
+    const tsToken = field(form, 'cf-turnstile-response');
 
     const ts = await verifyTurnstile(tsToken, c.env.TURNSTILE_SECRET_KEY, ip);
     if (!ts.ok) {
@@ -178,10 +179,10 @@ admin.get('/_admin/links', async c => {
 // create — auto-pairs a browse token + a download token sharing all metadata.
 admin.post('/_admin/links', async c => {
     const form = await c.req.formData();
-    const name = String(form.get('name') ?? '').trim();
-    const prefix = normalizePrefix(String(form.get('prefix') ?? ''));
-    const notes = String(form.get('notes') ?? '').trim() || undefined;
-    const presetId = String(form.get('preset') ?? '');
+    const name = field(form, 'name').trim();
+    const prefix = normalizePrefix(field(form, 'prefix'));
+    const notes = field(form, 'notes').trim() || undefined;
+    const presetId = field(form, 'preset');
     const ms = presetMs(presetId);
 
     if (!name || !prefix || ms === null) {
@@ -344,9 +345,9 @@ admin.patch('/_admin/links/:token', async c => {
     if (!link) return toastError(c, 'Link not found.', 404);
 
     const form = await c.req.formData();
-    const name = String(form.get('name') ?? '').trim();
-    const prefix = normalizePrefix(String(form.get('prefix') ?? ''));
-    const notes = String(form.get('notes') ?? '').trim() || undefined;
+    const name = field(form, 'name').trim();
+    const prefix = normalizePrefix(field(form, 'prefix'));
+    const notes = field(form, 'notes').trim() || undefined;
 
     if (!name || !prefix)
         return toastError(c, 'Name and folder required.', 400);
@@ -377,7 +378,7 @@ admin.post('/_admin/links/:token/extend', async c => {
     if (!link) return toastError(c, 'Link not found.', 404);
 
     const form = await c.req.formData();
-    const presetId = String(form.get('preset') ?? '');
+    const presetId = field(form, 'preset');
     const ms = presetMs(presetId);
     if (ms === null) return toastError(c, 'Invalid expiry preset.', 400);
 
@@ -609,8 +610,8 @@ admin.get('/_admin/files/list', async c => {
 
 admin.post('/_admin/files/folder', async c => {
     const form = await c.req.formData();
-    const parentRaw = String(form.get('parent') ?? '');
-    const nameRaw = String(form.get('name') ?? '');
+    const parentRaw = field(form, 'parent');
+    const nameRaw = field(form, 'name');
     let parent: string;
     let name: string;
     try {
@@ -639,10 +640,10 @@ admin.post('/_admin/files/folder', async c => {
 
 admin.post('/_admin/files/multipart/init', async c => {
     const form = await c.req.formData();
-    const prefix = String(form.get('prefix') ?? '');
-    const name = String(form.get('name') ?? '');
+    const prefix = field(form, 'prefix');
+    const name = field(form, 'name');
     const sizeRaw = Number(form.get('size'));
-    const contentType = String(form.get('contentType') ?? '');
+    const contentType = field(form, 'contentType');
     if (!Number.isFinite(sizeRaw) || sizeRaw < 0) {
         return c.json({ error: 'invalid size' }, 400);
     }
@@ -852,8 +853,8 @@ admin.get('/_admin/files/folder/edit', async c => {
 
 admin.patch('/_admin/files/object', async c => {
     const form = await c.req.formData();
-    const key = String(form.get('key') ?? '');
-    const newName = String(form.get('newName') ?? '');
+    const key = field(form, 'key');
+    const newName = field(form, 'newName');
     if (!key || key.includes('..')) return toastError(c, 'Invalid key.', 400);
     let result: { newKey: string };
     try {
@@ -875,8 +876,8 @@ admin.patch('/_admin/files/object', async c => {
 
 admin.patch('/_admin/files/folder', async c => {
     const form = await c.req.formData();
-    const raw = String(form.get('prefix') ?? '');
-    const newName = String(form.get('newName') ?? '');
+    const raw = field(form, 'prefix');
+    const newName = field(form, 'newName');
     let prefix: string;
     try {
         prefix = parsePrefix(raw);

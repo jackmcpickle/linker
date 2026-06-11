@@ -17,7 +17,7 @@
         "jsxImportSource": "hono/jsx",
         "types": [
             "@cloudflare/workers-types",
-            "@cloudflare/vitest-pool-workers"
+            "@cloudflare/vitest-pool-workers/types"
         ]
     },
     "include": ["src/**/*", "worker-configuration.d.ts"]

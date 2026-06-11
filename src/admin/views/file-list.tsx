@@ -1,5 +1,5 @@
 import type { FC } from 'hono/jsx';
-import type { ListedEntry } from '../files';
+import { DELETE_CAP, type ListedEntry } from '../files';
 import { Spinner } from './components/spinner';
 import { listUrl } from './file-list-url';
 import { FileRowStatic, FolderRowStatic } from './file-row-edit';
@@ -187,6 +187,7 @@ const UploadDropzone: FC<{ prefix: string }> = ({ prefix }) => (
         class="mb-3"
         data-dropzone
         data-prefix={prefix}
+        data-upload-cap={String(DELETE_CAP)}
     >
         <label class="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-zinc-300 bg-white px-4 py-8 text-center transition hover:border-zinc-900 hover:bg-zinc-50">
             <span class="text-sm font-medium text-zinc-900">
@@ -205,6 +206,15 @@ const UploadDropzone: FC<{ prefix: string }> = ({ prefix }) => (
             />
             <Spinner class="mt-1 h-4 w-4 text-zinc-500" />
         </label>
+        <button
+            type="button"
+            data-folder-pick
+            class="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-900 transition hover:border-zinc-900 hover:bg-zinc-50"
+        >
+            Upload folder (keeps structure)
+        </button>
+        {/* webkitdirectory set in admin.js to dodge JSX attr typing */}
+        <input type="file" class="sr-only" data-folder-input />
         <progress
             data-upload-progress
             class="mt-2 hidden w-full"

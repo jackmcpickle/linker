@@ -276,8 +276,19 @@
     }
 
     async function uploadOneFile(form, file, prefix) {
+        // Folder picks carry a webkitRelativePath like "parent/child/a.txt".
+        // Fold the dir portion into the prefix so nested structure is kept;
+        // the server stitches key = prefix + name and accepts nested prefixes.
+        var rel = file.webkitRelativePath || '';
+        var subPrefix = '';
+        if (rel) {
+            var slash = rel.lastIndexOf('/');
+            if (slash >= 0) subPrefix = rel.slice(0, slash + 1);
+        }
+        var effectivePrefix = prefix + subPrefix;
+
         var initForm = new FormData();
-        initForm.set('prefix', prefix);
+        initForm.set('prefix', effectivePrefix);
         initForm.set('name', file.name);
         initForm.set('size', String(file.size));
         initForm.set('contentType', file.type || 'application/octet-stream');
@@ -290,7 +301,9 @@
         var init = await initRes.json();
 
         if (init.uploadId === null) {
-            await refreshListing(prefix);
+            // Listing is refreshed once after the whole batch (see
+            // handleDropzoneUpload) so the in-progress form isn't swapped
+            // out mid-upload, which would hide per-file progress.
             return;
         }
 
@@ -343,7 +356,6 @@
                 throw new Error('complete failed');
             }
             liveUploads.delete(init.uploadId);
-            swapFileList(await completeRes.text());
         } catch (err) {
             liveUploads.delete(init.uploadId);
             try {
@@ -371,6 +383,18 @@
 
     async function handleDropzoneUpload(form, files) {
         var prefix = form.getAttribute('data-prefix') || '';
+        var cap = parseInt(form.getAttribute('data-upload-cap') || '0', 10);
+        if (cap > 0 && files.length > cap) {
+            fallbackToast(
+                'error',
+                'Too many files: ' +
+                    files.length +
+                    '. Max ' +
+                    cap +
+                    ' per upload.',
+            );
+            return;
+        }
         form.classList.add('htmx-request');
         try {
             for (var i = 0; i < files.length; i++) {
@@ -378,7 +402,7 @@
                 setStatus(
                     form,
                     'Uploading ' +
-                        file.name +
+                        (file.webkitRelativePath || file.name) +
                         ' (' +
                         (i + 1) +
                         '/' +
@@ -407,6 +431,10 @@
             var input = form.querySelector('[data-dropzone-input]');
             if (input) input.value = '';
         }
+        // Single listing refresh after the batch. Doing this per-file would
+        // swap out #file-content (which contains this form) mid-upload and
+        // hide progress for the remaining files.
+        await refreshListing(prefix);
     }
 
     function bindDropzone(zone) {
@@ -438,6 +466,29 @@
             if (!fileInput.files || fileInput.files.length === 0) return;
             handleDropzoneUpload(zone, fileInput.files);
         });
+
+        // Folder pick: a separate hidden input with webkitdirectory so the
+        // browse dialog selects a whole tree (nested paths preserved).
+        var folderInput = zone.querySelector('[data-folder-input]');
+        var folderBtn = zone.querySelector('[data-folder-pick]');
+        if (folderInput && folderBtn) {
+            folderInput.setAttribute('webkitdirectory', '');
+            folderInput.setAttribute('directory', '');
+            folderInput.multiple = true;
+            folderBtn.addEventListener('click', function () {
+                folderInput.click();
+            });
+            folderInput.addEventListener('change', function () {
+                if (!folderInput.files || folderInput.files.length === 0)
+                    return;
+                handleDropzoneUpload(zone, folderInput.files).finally(
+                    function () {
+                        folderInput.value = '';
+                    },
+                );
+            });
+        }
+
         zone.addEventListener('submit', function (e) {
             e.preventDefault();
         });

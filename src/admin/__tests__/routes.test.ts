@@ -32,7 +32,7 @@ function authed(init: RequestInit = {}): RequestInit {
     return {
         ...init,
         headers: {
-            ...(init.headers || {}),
+            ...(init.headers as Record<string, string> | undefined),
             cookie: sessionCookie,
             host: 'localhost',
         },

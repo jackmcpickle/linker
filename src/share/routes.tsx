@@ -7,6 +7,7 @@ import { InterstitialPage } from './views/interstitial';
 import { verifyTurnstile } from '../lib/turnstile';
 import { serveShare } from './serve';
 import { log } from '../lib/log';
+import { field } from '../lib/form';
 
 const share = new Hono<ShareEnv>();
 
@@ -30,8 +31,8 @@ share.use('*', shareGate);
 share.post('/__verify', async c => {
     const link = c.get('link');
     const form = await c.req.formData();
-    const tsToken = String(form.get('cf-turnstile-response') ?? '');
-    const next = safeNext(String(form.get('next') ?? '/'));
+    const tsToken = field(form, 'cf-turnstile-response');
+    const next = safeNext(field(form, 'next', '/'));
 
     const ts = await verifyTurnstile(
         tsToken,
