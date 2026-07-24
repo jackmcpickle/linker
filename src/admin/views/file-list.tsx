@@ -214,7 +214,11 @@ const UploadDropzone: FC<{ prefix: string }> = ({ prefix }) => (
             Upload folder (keeps structure)
         </button>
         {/* webkitdirectory set in admin.js to dodge JSX attr typing */}
-        <input type="file" class="sr-only" data-folder-input />
+        <input
+            type="file"
+            class="sr-only"
+            data-folder-input
+        />
         <progress
             data-upload-progress
             class="mt-2 hidden w-full"

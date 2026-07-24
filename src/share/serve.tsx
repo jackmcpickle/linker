@@ -168,7 +168,7 @@ async function buildListing(
 export async function serveShare(
     c: Context<ShareEnv>,
     link: ShareLink,
-    ctx: ExecutionContext,
+    ctx: Pick<ExecutionContext, 'waitUntil'>,
 ): Promise<Response> {
     if ((link.linkType ?? 'browse') === 'download') {
         return serveDownload(c, link, ctx);
@@ -276,7 +276,7 @@ function countView(
     link: ShareLink,
     res: Response,
     path: string,
-    ctx: ExecutionContext,
+    ctx: Pick<ExecutionContext, 'waitUntil'>,
 ): void {
     if (res.status !== 200) return;
     const ct = res.headers.get('Content-Type') ?? '';

@@ -3,7 +3,7 @@
     "version": "0.1.0",
     "private": true,
     "type": "module",
-    "packageManager": "pnpm@11.5.1",
+    "packageManager": "pnpm@11.16.0",
     "scripts": {
         "dev": "concurrently -n cf,css -c blue,magenta \"wrangler dev --remote\" \"pnpm tailwind:watch\"",
         "dev:worker": "wrangler dev --remote",
@@ -20,22 +20,22 @@
     },
     "dependencies": {
         "client-zip": "^2.5.0",
-        "hono": "^4.12.25",
-        "nanoid": "^5.1.11",
+        "hono": "^4.12.31",
+        "nanoid": "^6.0.0",
         "qrcode": "^1.5.4"
     },
     "devDependencies": {
-        "@cloudflare/vitest-pool-workers": "^0.16.14",
-        "@cloudflare/workers-types": "^4.20260610.1",
-        "@tailwindcss/cli": "^4.3.0",
+        "@cloudflare/vitest-pool-workers": "^0.18.7",
+        "@cloudflare/workers-types": "^5.20260722.1",
+        "@tailwindcss/cli": "^4.3.3",
         "@types/qrcode": "^1.5.6",
         "concurrently": "^10.0.3",
-        "oxfmt": "^0.54.0",
-        "oxlint": "^1.69.0",
-        "oxlint-tsgolint": "^0.23.0",
-        "tailwindcss": "^4.3.0",
-        "typescript": "^6.0.3",
-        "vitest": "~4.1.8",
-        "wrangler": "^4.99.0"
+        "oxfmt": "^0.60.0",
+        "oxlint": "^1.75.0",
+        "oxlint-tsgolint": "^7.0.2001",
+        "tailwindcss": "^4.3.3",
+        "typescript": "^7.0.2",
+        "vitest": "~4.1.10",
+        "wrangler": "^4.113.0"
     }
 }

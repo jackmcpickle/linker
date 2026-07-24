@@ -52,7 +52,7 @@ function targetLabel(target: Target): string {
 export async function serveDownload(
     c: Context<ShareEnv>,
     link: ShareLink,
-    ctx: ExecutionContext,
+    ctx: Pick<ExecutionContext, 'waitUntil'>,
 ): Promise<Response> {
     const url = new URL(c.req.url);
     const path = url.pathname;
@@ -128,7 +128,7 @@ export async function serveDownload(
 function bumpDownloadCount(
     env: ShareEnv['Bindings'],
     link: ShareLink,
-    ctx: ExecutionContext,
+    ctx: Pick<ExecutionContext, 'waitUntil'>,
 ): void {
     ctx.waitUntil(
         putLink(env.LINKS, {
