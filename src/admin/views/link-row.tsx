@@ -60,6 +60,14 @@ export const LinkRow: FC<Props> = ({ pair, shareDomain, mode = 'view' }) => {
                 <div class="mt-1 font-mono text-xs text-zinc-400">
                     {canonical.prefix}
                 </div>
+                {canonical.skipTurnstile ? (
+                    <div
+                        class="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800"
+                        title="Recipients skip the Cloudflare bot check — the URL is the only protection"
+                    >
+                        bot check off
+                    </div>
+                ) : null}
             </td>
             <td class="px-4 py-3">
                 <div class="flex flex-col gap-1.5">
@@ -309,6 +317,25 @@ const LinkRowEdit: FC<{ link: ShareLink }> = ({ link }) => (
                         {link.notes ?? ''}
                     </textarea>
                 </label>
+                <label class="flex items-start gap-2 md:col-span-2">
+                    <input
+                        type="checkbox"
+                        name="skipTurnstile"
+                        checked={link.skipTurnstile ? true : undefined}
+                        class="mt-0.5"
+                    />
+                    <span class="text-xs">
+                        <span class="block font-medium text-zinc-700">
+                            Skip bot check
+                        </span>
+                        <span class="block text-zinc-500">
+                            Recipients go straight to the content. Use when a
+                            client's browser or proxy blocks the Cloudflare
+                            challenge.
+                        </span>
+                    </span>
+                </label>
+
                 <div class="flex gap-2 md:col-span-2">
                     <button
                         type="submit"

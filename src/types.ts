@@ -33,6 +33,12 @@ export type ShareLink = {
     pairedToken?: string;
     /** Bumped on each download action. Independent from viewCount. */
     downloadCount?: number;
+    /**
+     * Skip the Turnstile interstitial for this share. For recipients behind
+     * corporate proxies / isolated browsers where the challenge can't solve.
+     * Applies to both halves of a pair. Undefined = challenge enforced.
+     */
+    skipTurnstile?: boolean;
 };
 
 export type Env = { Bindings: Bindings };

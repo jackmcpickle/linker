@@ -60,7 +60,7 @@ import {
     validateName,
     type UploadedPart,
 } from './files';
-import { field } from '../lib/form';
+import { checked, field } from '../lib/form';
 
 const admin = new Hono<Env>();
 
@@ -184,6 +184,7 @@ admin.post('/_admin/links', async c => {
     const notes = field(form, 'notes').trim() || undefined;
     const presetId = field(form, 'preset');
     const ms = presetMs(presetId);
+    const skipTurnstile = checked(form, 'skipTurnstile') || undefined;
 
     if (!name || !prefix || ms === null) {
         return toastError(c, 'Invalid name, folder, or expiry.', 400);
@@ -202,6 +203,7 @@ admin.post('/_admin/links', async c => {
         viewCount: 0,
         linkType: 'browse',
         pairedToken: downloadToken,
+        skipTurnstile,
     };
     const download: ShareLink = {
         token: downloadToken,
@@ -214,6 +216,7 @@ admin.post('/_admin/links', async c => {
         downloadCount: 0,
         linkType: 'download',
         pairedToken: browseToken,
+        skipTurnstile,
     };
     try {
         await putPair(c.env.LINKS, browse, download);
@@ -349,14 +352,41 @@ admin.patch('/_admin/links/:token', async c => {
     const prefix = normalizePrefix(field(form, 'prefix'));
     const notes = field(form, 'notes').trim() || undefined;
 
+    const skipTurnstile = checked(form, 'skipTurnstile') || undefined;
+
     if (!name || !prefix)
         return toastError(c, 'Name and folder required.', 400);
 
-    const updated = await mutatePair(c.env.LINKS, link, {
-        name,
-        prefix,
-        notes,
-    });
+    if (!!skipTurnstile !== !!link.skipTurnstile) {
+        log({
+            event: 'admin.link.turnstile_toggle',
+            token,
+            skipTurnstile: !!skipTurnstile,
+        });
+    }
+
+    let updated: ShareLink;
+    try {
+        updated = await mutatePair(c.env.LINKS, link, {
+            name,
+            prefix,
+            notes,
+            skipTurnstile,
+        });
+    } catch (err) {
+        // mutatePair rethrows only when a bypass change failed to reach the
+        // partner — the two URLs now disagree about the bot check.
+        log({
+            event: 'admin.link.update_fail',
+            token,
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return toastError(
+            c,
+            'Bot-check setting may not have reached the paired link. Re-save to retry.',
+            500,
+        );
+    }
     const pair = await loadPairByToken(c.env.LINKS, updated.token);
     return c.html(
         withToast(
@@ -479,6 +509,7 @@ admin.post('/_admin/links/:token/pair', async c => {
         downloadCount: 0,
         linkType: 'download',
         pairedToken: link.token,
+        skipTurnstile: link.skipTurnstile,
     };
     try {
         await putLink(c.env.LINKS, download);
