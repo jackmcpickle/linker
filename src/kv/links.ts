@@ -144,7 +144,15 @@ export async function mutatePair(
     kv: KVNamespace,
     link: ShareLink,
     patch: Partial<
-        Pick<ShareLink, 'name' | 'notes' | 'prefix' | 'expiresAt' | 'revokedAt'>
+        Pick<
+            ShareLink,
+            | 'name'
+            | 'notes'
+            | 'prefix'
+            | 'expiresAt'
+            | 'revokedAt'
+            | 'skipTurnstile'
+        >
     >,
 ): Promise<ShareLink> {
     const partner = await getPartner(kv, link);

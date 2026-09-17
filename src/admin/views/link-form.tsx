@@ -78,6 +78,24 @@ export const CreateLinkForm: FC<Props> = ({ defaultPrefix }) => (
             </div>
         </fieldset>
 
+        <label class="flex items-start gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-3">
+            <input
+                type="checkbox"
+                name="skipTurnstile"
+                class="mt-0.5"
+            />
+            <span class="text-xs">
+                <span class="block font-medium text-zinc-700">
+                    Skip bot check
+                </span>
+                <span class="block text-zinc-500">
+                    For recipients whose corporate browser or proxy blocks the
+                    Cloudflare challenge. The link URL becomes the only
+                    protection — use short expiries.
+                </span>
+            </span>
+        </label>
+
         <div>
             <button
                 type="submit"

@@ -43,6 +43,7 @@ async function shareCookieFor(link: ShareLink): Promise<string> {
 async function seedPair(opts: {
     prefix: string;
     name?: string;
+    skipTurnstile?: boolean;
 }): Promise<{ browse: ShareLink; download: ShareLink }> {
     const now = Date.now();
     const browse: ShareLink = {
@@ -54,6 +55,7 @@ async function seedPair(opts: {
         viewCount: 0,
         linkType: 'browse',
         pairedToken: 'downloadab',
+        skipTurnstile: opts.skipTurnstile,
     };
     const download: ShareLink = {
         token: 'downloadab',
@@ -65,6 +67,7 @@ async function seedPair(opts: {
         downloadCount: 0,
         linkType: 'download',
         pairedToken: 'browseabcd',
+        skipTurnstile: opts.skipTurnstile,
     };
     await putLink(env.LINKS, browse);
     await putLink(env.LINKS, download);
@@ -107,6 +110,36 @@ describe('share download — landing page', () => {
         const html = await res.text();
         // The interstitial form has a `next` field pointing back at /
         expect(html.toLowerCase()).toContain('turnstile');
+    });
+
+    it('skips the interstitial without a cookie when skipTurnstile is set', async () => {
+        await env.BUCKET.put('photos/a.txt', 'aa');
+        const { download } = await seedPair({
+            prefix: 'photos/',
+            name: 'Photos',
+            skipTurnstile: true,
+        });
+
+        const res = await SELF.fetch(urlFor(download.token, '/'), {
+            headers: { host: hostFor(download.token) },
+        });
+        expect(res.status).toBe(200);
+        const html = await res.text();
+        expect(html.toLowerCase()).not.toContain('turnstile');
+        expect(html).toContain('href="/__download"');
+    });
+
+    it('still gates revoked links when skipTurnstile is set', async () => {
+        const { download } = await seedPair({
+            prefix: 'photos/',
+            skipTurnstile: true,
+        });
+        await putLink(env.LINKS, { ...download, revokedAt: Date.now() });
+
+        const res = await SELF.fetch(urlFor(download.token, '/'), {
+            headers: { host: hostFor(download.token) },
+        });
+        expect(res.status).toBe(410);
     });
 });
 

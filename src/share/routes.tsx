@@ -67,8 +67,14 @@ share.post('/__verify', async c => {
 });
 
 // Recipient cookie gate — render interstitial if cookie missing/invalid.
+// Links flagged `skipTurnstile` bypass the challenge entirely: the token in
+// the hostname is the only credential. Opt-in per link from the admin UI.
 share.use('*', async (c, next) => {
     const link = c.get('link');
+    if (link.skipTurnstile) {
+        log({ event: 'share.verify.skipped', token: link.token });
+        return next();
+    }
     const ok = await hasValidShareCookie(
         c,
         link.token,
