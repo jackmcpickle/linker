@@ -365,12 +365,28 @@ admin.patch('/_admin/links/:token', async c => {
         });
     }
 
-    const updated = await mutatePair(c.env.LINKS, link, {
-        name,
-        prefix,
-        notes,
-        skipTurnstile,
-    });
+    let updated: ShareLink;
+    try {
+        updated = await mutatePair(c.env.LINKS, link, {
+            name,
+            prefix,
+            notes,
+            skipTurnstile,
+        });
+    } catch (err) {
+        // mutatePair rethrows only when a bypass change failed to reach the
+        // partner — the two URLs now disagree about the bot check.
+        log({
+            event: 'admin.link.update_fail',
+            token,
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return toastError(
+            c,
+            'Bot-check setting may not have reached the paired link. Re-save to retry.',
+            500,
+        );
+    }
     const pair = await loadPairByToken(c.env.LINKS, updated.token);
     return c.html(
         withToast(

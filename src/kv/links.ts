@@ -160,9 +160,16 @@ export async function mutatePair(
     await putLink(kv, updated);
     if (partner) {
         const updatedPartner: ShareLink = { ...partner, ...patch };
+        // A dropped write that leaves the two halves disagreeing about
+        // `skipTurnstile` is not safe to swallow: the partner URL would keep
+        // the old bypass setting while the caller is told the change landed.
+        // Every other field re-converges on the next mutation.
+        const bypassChanged =
+            !!updatedPartner.skipTurnstile !== !!partner.skipTurnstile;
         try {
             await putLink(kv, updatedPartner);
-        } catch {
+        } catch (err) {
+            if (bypassChanged) throw err;
             // log + tolerate; next mutation re-converges
         }
     }
